@@ -74,7 +74,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
               case e: Throwable => warn(e.toString, e); debug(e.toString, e)
             }
             templateOffset += templateSize
-          } while (templateOffset - packetOffset < flowsetLength)
+          } while (templateOffset - packetOffset <= V9_Header_Size + flowsetLength)
 
         case 1 | 3 => // template flowset - 1 NetFlow v9, 3 IPFIX
           val flowtype = if (flowsetId == 0) "NetFlow v9" else "IPFIX"
@@ -93,7 +93,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
               case e: Throwable => warn(e.toString, e); debug(e.toString, e)
             }
             templateOffset += templateSize
-          } while (templateOffset - packetOffset < flowsetLength)
+          } while (templateOffset - packetOffset <= V9_Header_Size + flowsetLength)
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           Template(sender, flowsetId) match {
@@ -102,7 +102,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
               val flowdata = if (tmpl.isOptionTemplate) "Option" else "Master"
               info(s"Received $flowtype $flowdata FlowSet ($flowsetId) from $senderIP/$senderPort")
               var recordOffset = packetOffset + 4
-              while (recordOffset + tmpl.length < flowsetLength) {
+              while (recordOffset + tmpl.length <= V9_Header_Size + flowsetLength) {
                 try {
                   val buffer = buf.copy(recordOffset, tmpl.length)
                   flows :+= new V9Flow(sender, buffer, tmpl)
