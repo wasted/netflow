@@ -1,0 +1,43 @@
+# swap files
+*~
+*#
+*.sw[op]
+._*
+
+# sbt
+project/boot
+project/target
+project/plugins/target
+project/plugins/project
+
+# OSX
+.DS_Store
+
+
+# Intellij IDEA
+*.iws
+*.ipr
+*.iml
+.idea*
+
+
+# Eclipse & Netbeans
+.cache
+.project
+.settings
+.classpath
+.scala_dependencies
+
+
+# ensime
+ensime_port
+.ensime.*
+
+# binary stuff
+build
+target
+lib
+
+# 
+src/main/resources/props/*
+
