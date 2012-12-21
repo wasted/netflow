@@ -27,18 +27,16 @@ private[netflow] object TrafficServerHandler extends ChannelInboundMessageHandle
   }
 
   def unsupportedPacket(sender: InetSocketAddress): Unit = {
-    val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-    warn(s"Unsupported UDP Packet received from $ip/$port")
+    warn("Unsupported UDP Packet received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
   }
 
   override def messageReceived(ctx: ChannelHandlerContext, msg: DatagramPacket) {
-    val (senderIP, senderPort) = (msg.remoteAddress.getAddress.getHostAddress, msg.remoteAddress.getPort)
     val sender = msg.remoteAddress
     val buf = msg.data
     implicit val sc = Service.backend.start
 
     if (!Service.backend.acceptFrom(sender)) {
-      warn(s"Unauthorized NetFlow received from $senderIP/$senderPort")
+      warn("Unauthorized NetFlow received from " + msg.remoteAddress.getAddress.getHostAddress + "/" + msg.remoteAddress.getPort)
       return
     }
 
@@ -71,8 +69,7 @@ private[netflow] object TrafficServerHandler extends ChannelInboundMessageHandle
         }
 
       case Success(version) =>
-        val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-        info(s"Unsupported NetFlow version $version received from $ip/$port")
+        info("Unsupported NetFlow version " + version + " received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
         Service.backend.countDatagram(new DateTime, sender, true)
         None
     }

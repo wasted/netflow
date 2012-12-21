@@ -61,7 +61,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
         case 0 | 2 => // template flowset - 0 NetFlow v9, 2 IPFIX
           val flowtype = if (flowsetId == 0) "NetFlow v9" else "IPFIX"
           var templateOffset = packetOffset + 4
-          info(s"Received $flowtype Template FlowSet ($flowsetId) from $senderIP/$senderPort")
+          info("Received " + flowtype + " Template FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           do {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
             val templateSize = fieldCount * 4 + 4
@@ -78,7 +78,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
 
         case 1 | 3 => // template flowset - 1 NetFlow v9, 3 IPFIX
           val flowtype = if (flowsetId == 0) "NetFlow v9" else "IPFIX"
-          info(s"Received $flowtype OptionTemplate FlowSet ($flowsetId) from $senderIP/$senderPort")
+          info("Received " + flowtype + " OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           var templateOffset = packetOffset + 4
           do {
             val scopeLen = buf.getUnsignedShort(templateOffset + 2)
@@ -100,7 +100,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
             case Some(tmpl) =>
               val flowtype = if (tmpl.isIPFIX) "IPFIX" else "NetFlow v9"
               val flowdata = if (tmpl.isOptionTemplate) "Option" else "Master"
-              info(s"Received $flowtype $flowdata FlowSet ($flowsetId) from $senderIP/$senderPort")
+              info("Received " + flowtype + " " + flowdata + " FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
               var recordOffset = packetOffset + 4
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
@@ -114,15 +114,15 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
               }
             case _ =>
           }
-        case a: Int => debug(s"Unexpected TemplateId ($a)")
+        case a: Int => debug("Unexpected TemplateId (" + a + ")")
       }
       packetOffset += flowsetLength.toInt
     }
-    info(s"Flows passed $flowsetCounter of $count")
+    info("Flows passed " + flowsetCounter + " of " + count)
     flows
   }
 
-  info(s"NetFlow version 9 received from $senderIP/$senderPort")
+  info("NetFlow version 9 received from " + senderIP + "/" + senderPort)
 }
 
 private[netflow] class V9Flow(val sender: InetSocketAddress, buf: ByteBuf, val template: Template) extends FlowData {

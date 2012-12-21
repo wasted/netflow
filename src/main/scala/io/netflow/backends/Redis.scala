@@ -28,7 +28,6 @@ private[netflow] class Redis extends Storage with Thruput[Redis] {
 
   // Handle valid Flows
   protected def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String)(implicit sc: StorageConnection) = sc.run[RedisClient, Unit] { redisClient =>
-    val trans = redisClient.pipeline
     val senderIP = flowPacket.senderIP
     val senderPort = flowPacket.senderPort
 

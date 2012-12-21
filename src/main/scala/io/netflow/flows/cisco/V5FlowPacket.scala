@@ -62,11 +62,11 @@ private[netflow] class V5FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
       new V5Flow(senderIP, buf.copy(V5_Header_Size + (i * V5_Flow_Size), V5_Flow_Size))
     }
     val flowCount = flows.length
-    info(s"Flows passed $flowCount of $count")
+    info("Flows passed " + flowCount + " of " + count)
     flows
   }
 
-  info(s"NetFlow version 5 received from $senderIP/$senderPort")
+  info("NetFlow version 5 received from " + senderIP + "/" + senderPort)
 }
 
 /**

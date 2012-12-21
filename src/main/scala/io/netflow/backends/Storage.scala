@@ -63,9 +63,9 @@ private[netflow] trait Storage extends Logger {
             prefixes +:= a
             Some(a)
           case Failure(f) =>
-            warn(s"Unable to parse prefix: $network"); None
+            warn("Unable to parse prefix: " + network); None
         }
-      } else { warn(s"Unable to parse prefix: $network"); None }
+      } else { warn("Unable to parse prefix: " + network); None }
   }
 
   protected def getPrefixes(sender: InetSocketAddress)(implicit sc: StorageConnection): List[InetPrefix]
