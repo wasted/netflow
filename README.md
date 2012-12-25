@@ -1,10 +1,11 @@
-netflow.io Collector
+![netflow.io](http://netflow.io/images/soon/netflow.png)
+
 =======
 
 ## Running
 
 ```
-  ./sbt run
+  ./sbt ~run
 ```
 
 
