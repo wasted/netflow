@@ -1,6 +1,6 @@
 package io.netflow.flows.cisco
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 
 class FlowException(msg: String) extends Exception(msg)
 

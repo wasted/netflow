@@ -1,15 +1,10 @@
 package io.netflow.flows.cisco
 
-import io.wasted.util._
 import io.netflow.flows._
-import io.netflow.backends.StorageConnection
 
 import io.netty.buffer._
-import io.netty.util.CharsetUtil
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{ Try, Success, Failure }
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -35,7 +30,7 @@ import java.net.{ InetAddress, InetSocketAddress }
  * @param senderIP senderIP's IP Address
  * @param buf Netty ByteBuf containing the UDP Packet
  */
-private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)(implicit sc: StorageConnection) extends FlowPacket {
+private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf, getTemplate: (Int) => Option[Template]) extends FlowPacket {
   private val V9_Header_Size = 20
   def senderIP() = sender.getAddress.getHostAddress
   def senderPort() = sender.getPort
@@ -96,7 +91,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
           } while (templateOffset - packetOffset <= packetOffset + flowsetLength)
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
-          Template(sender, flowsetId) match {
+          getTemplate(flowsetId) match {
             case Some(tmpl) =>
               val flowtype = if (tmpl.isIPFIX) "IPFIX" else "NetFlow v9"
               val flowdata = if (tmpl.isOptionTemplate) "Option" else "Master"

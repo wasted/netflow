@@ -2,75 +2,59 @@ package io.netflow.backends
 
 import io.netflow.flows._
 import io.wasted.util._
-import io.wasted.util.http._
 
-import scala.concurrent._
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.immutable.HashMap
 import scala.util.{ Try, Success, Failure }
+import java.net.{ InetAddress, InetSocketAddress }
 
 import org.joda.time.DateTime
 
-import java.net.{ InetAddress, InetSocketAddress }
+private[netflow] object Storage extends Logger {
 
-private[netflow] case class StorageConnection(conn: Any) {
-  def as[T]() = conn.asInstanceOf[T]
-  def tryAs[T]() = Tryo(as[T])
-  def run[ST, RT](f: (ST) => RT): RT = f(as[ST])
+  private val host = Config.getString("redis.host", "127.0.0.1")
+  private val port = Config.getInt("redis.port", 6379)
+  private val maxConns = Config.getInt("backend.maxConns", 100)
+  private val newConnect = () => new Redis(host, port, false, false)
+
+  private val pool = new PooledResource[Storage](newConnect, maxConns)
+  def start(): Option[Storage] = pool.get()
+  def stop(c: Storage) { pool.release(c) }
 }
 
 private[netflow] trait Storage extends Logger {
-  def start(): StorageConnection
-  def stop(implicit sc: StorageConnection): Unit
-
   // Save invalid Flows
-  protected def save(flowPacket: FlowPacket, flow: FlowData)(implicit sc: StorageConnection): Unit
+  def save(flowPacket: FlowPacket, flow: FlowData): Unit
 
   // Save valid Flows
-  protected def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String)(implicit sc: StorageConnection): Unit
+  def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String): Unit
 
-  protected def save(tmpl: cisco.Template)(implicit sc: StorageConnection): Unit
+  def save(template: cisco.Template): Unit
 
-  def ciscoTemplateFields(sender: InetSocketAddress, id: Int)(implicit sc: StorageConnection): Option[HashMap[String, Int]]
+  def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]
 
   // Validate the sender
-  protected var senders: Vector[(InetAddress, Int)] = Vector()
-  def senderExists(sender: InetSocketAddress)(implicit sc: StorageConnection): Boolean
-  def acceptFrom(sender: InetSocketAddress)(implicit sc: StorageConnection): Boolean = {
-    val obj = (sender.getAddress, sender.getPort)
-    if (senders.exists(_ == obj)) return true
-    if (senderExists(sender)) {
-      senders +:= obj
-      return true
-    }
-    false
+  def acceptFrom(sender: InetSocketAddress): Boolean
+
+  // Count DataGram from this sender
+  def countDatagram(date: DateTime, sender: InetSocketAddress, bad: Boolean = false): Unit
+
+  def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix): List[ThruputRecipient]
+
+  def getPrefixes(sender: InetSocketAddress): List[InetPrefix]
+  def getThruputPrefixes(sender: InetSocketAddress): List[InetPrefix]
+
+  protected def getPrefix(network: String) = {
+    val split = network.split("/")
+    if (split.length == 2) {
+      val prefix = split.head
+      val prefixLen = split.last
+      Try(InetPrefix(java.net.InetAddress.getByName(prefix), prefixLen.toInt)) match {
+        case Success(a: InetPrefix) => Some(a)
+        case Failure(f) => warn("Unable to parse prefix: " + network); None
+      }
+    } else { warn("Unable to parse prefix: " + network); None }
   }
 
-  // Count datagrams from this sender
-  def countDatagram(date: DateTime, sender: InetSocketAddress, bad: Boolean = false)(implicit sc: StorageConnection): Unit
-
-  protected var prefixes: Vector[InetPrefix] = Vector()
-
-  protected def getPrefix(network: String) = prefixes.find(_.toString == network) match {
-    case Some(prefix) => Some(prefix)
-    case _ =>
-      val split = network.split("/")
-      if (split.length == 2) {
-        val prefix = split.head
-        val prefixLen = split.last
-        Try(InetPrefix(java.net.InetAddress.getByName(prefix), prefixLen.toInt)) match {
-          case Success(a: InetPrefix) =>
-            prefixes +:= a
-            Some(a)
-          case Failure(f) =>
-            warn("Unable to parse prefix: " + network); None
-        }
-      } else { warn("Unable to parse prefix: " + network); None }
-  }
-
-  protected def getPrefixes(sender: InetSocketAddress)(implicit sc: StorageConnection): List[InetPrefix]
-  protected def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix)(implicit sc: StorageConnection): List[ThruputRecipient]
-  protected def getThruputPrefixes(sender: InetSocketAddress)(implicit sc: StorageConnection): List[InetPrefix]
-
+  def stop()
 }
 

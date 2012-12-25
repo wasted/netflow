@@ -1,6 +1,5 @@
 package io.netflow.flows.cisco
 
-import io.netflow.backends.StorageConnection
 import io.netflow.flows.Flow
 import io.netflow.Service
 import io.wasted.util._
@@ -9,11 +8,9 @@ import io.netty.buffer._
 
 import scala.collection.immutable.HashMap
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 
 private[netflow] object Template {
-
-  private var templates = HashMap[(InetSocketAddress, Int), Template]()
 
   def apply(sender: InetSocketAddress, buf: ByteBuf, flowsetId: Int): Option[Template] = Tryo {
     val templateId = buf.getUnsignedShort(0)
@@ -35,19 +32,17 @@ private[netflow] object Template {
       idx += 1
     }
     map ++= Map("length" -> dataFlowSetOffset, "flowsetId" -> flowsetId)
-    val tmpl = Template(templateId, sender, map)
-    templates ++= Map(tmpl.key -> tmpl)
-    tmpl
+    Template(templateId, sender, map)
   }
 
-  def apply(sender: InetSocketAddress, id: Int)(implicit sc: StorageConnection): Option[Template] =
-    templates.get((sender, id)) match {
-      case Some(tmpl) => Some(tmpl)
-      case _ =>
-        for {
-          fields <- Service.backend.ciscoTemplateFields(sender, id)
-        } yield Template(id, sender, fields)
+  def apply(sender: InetSocketAddress, id: Int): Option[Template] =
+    Service.backend.ciscoTemplateFields(sender, id) match {
+      case Some(fields: HashMap[String, Int]) => this(sender, id, fields)
+      case None => None
     }
+
+  def apply(sender: InetSocketAddress, id: Int, fields: HashMap[String, Int]): Option[Template] =
+    Tryo(Template(id, sender, fields))
 
   import FieldDefinition._
   def defaultTypeLengths(typeName: Int): Int = typeName match {

@@ -5,12 +5,10 @@ import io.wasted.util._
 
 import io.netty.bootstrap._
 import io.netty.channel._
-import io.netty.channel.socket._
 import io.netty.channel.socket.nio._
 import io.netty.logging._
 
 import scala.util.{ Try, Success, Failure }
-import java.util.concurrent._
 
 object Server extends App with Logger { PS =>
   override def main(args: Array[String]) { start() }
@@ -36,7 +34,7 @@ object Server extends App with Logger { PS =>
         val chan = srv.group(new NioEventLoopGroup)
           .localAddress(addr)
           .channel(classOf[NioDatagramChannel])
-          .handler(TrafficServerHandler)
+          .handler(TrafficHandler)
           .option[java.lang.Integer](ChannelOption.SO_RCVBUF, 102400)
         srv.bind().sync
         info("Listening on %s:%s", addr.getAddress.getHostAddress, addr.getPort)

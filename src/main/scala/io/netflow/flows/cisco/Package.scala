@@ -4,10 +4,9 @@ import io.netflow.flows.cisco._
 import io.wasted.util._
 
 import io.netty.buffer._
-import io.netty.util.CharsetUtil
 
 import java.util.Properties
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetAddress
 import scala.collection.JavaConversions._
 
 class OurByteBuf(buf: ByteBuf) extends Logger {
@@ -16,7 +15,7 @@ class OurByteBuf(buf: ByteBuf) extends Logger {
   }
 
   def getInetAddress(offset: Int, length: Int = 4): InetAddress = {
-    val buffer = buf.copy(offset, length)
+    val buffer = buf.slice(offset, length)
     val data = (1 to length).map(a => buffer.readUnsignedByte.toByte).toArray
     InetAddress.getByAddress(data)
   }

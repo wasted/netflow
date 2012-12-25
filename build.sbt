@@ -7,7 +7,7 @@ organization := "io.wasted"
 
 version := ("git describe --always"!!).trim
 
-scalaVersion := "2.10.0-RC3"
+scalaVersion := "2.10.0"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
@@ -41,9 +41,10 @@ resolvers ++= Seq(
 
 
 libraryDependencies ++= Seq(
-  "io.wasted" %% "util" % "0.2",
+  "io.wasted" %% "util" % "0.2.1",
+  "com.typesafe.akka" %% "akka-actor" % "2.1.0",
   "ch.qos.logback" % "logback-classic" % "1.0.7" % "compile",
-  "org.specs2" %% "specs2" % "1.12.3" % "test",
+  "org.specs2" %% "specs2" % "1.13" % "test",
   "com.github.spullara.redis" % "client" % "0.3"
 )
 

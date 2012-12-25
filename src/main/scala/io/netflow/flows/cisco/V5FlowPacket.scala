@@ -1,13 +1,10 @@
 package io.netflow.flows.cisco
 
-import io.wasted.util._
 import io.netflow.flows._
-import io.netflow.Service
 
 import io.netty.buffer._
-import io.netty.util.CharsetUtil
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 
 /**
  * NetFlow Version 5 Packet

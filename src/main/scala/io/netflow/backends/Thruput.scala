@@ -1,15 +1,9 @@
 package io.netflow.backends
 
 import io.netflow.flows._
-import io.wasted.util._
-import io.wasted.util.http._
 
-import scala.concurrent._
-import scala.collection.immutable.HashMap
-
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetAddress
 import java.util.UUID
-import java.net.URL
 
 case class ThruputRecipient(platform: ThruputPlatform, toUser: Option[String] = None) {
   def auth = platform.auth
@@ -29,10 +23,8 @@ case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
     """{ "mime": "wasted/netflow", "body": """ + fd.json + """, "ip": """" + ip.getHostAddress + """"""" + user + " }"
   }
 }
-
-private[netflow] trait Thruput[A <: Storage] {
-  this: A with Storage =>
-
+private[netflow] trait Thruput {
+} /*
   protected var thruputPlatforms = HashMap[String, ThruputPlatform]()
   protected val thruputHttpClient = HttpClient()
 
@@ -44,14 +36,8 @@ private[netflow] trait Thruput[A <: Storage] {
     }
   }
 
-  protected def workFlows(flowPacket: FlowPacket, list: List[Flow])(implicit sc: StorageConnection): Unit = if (list.length > 0) list.head match {
-    case fd: FlowData =>
-      workPrefix(flowPacket, fd, prefixes)
-      workFlows(flowPacket, list.tail)
-    case _ =>
-  }
-
-  protected def workPrefix(flowPacket: FlowPacket, fd: FlowData, plist: Vector[InetPrefix])(implicit sc: StorageConnection): Unit = if (plist.length > 0) {
+  protected def workFlows(flowPacket: FlowPacket, list: List[Flow], prefixes: List[InetPrefix])(implicit sc: StorageConnection): Unit = if (list.length > 0) list.head 
+  protected def workPrefix(flowPacket: FlowPacket, fd: FlowData, plist: List[InetPrefix])(implicit sc: StorageConnection): Unit = if (plist.length > 0) {
     val prefix = plist.head
     if (prefix.contains(fd.srcAddress)) thruputHandleFlow(flowPacket.sender, prefix, fd.dstAddress, fd, sc)
     if (prefix.contains(fd.dstAddress)) thruputHandleFlow(flowPacket.sender, prefix, fd.srcAddress, fd, sc)
@@ -60,9 +46,16 @@ private[netflow] trait Thruput[A <: Storage] {
 
   protected def thruput(flowPacket: FlowPacket)(implicit sc: StorageConnection) {
     // Get all thruput prefixes for this sender
-    val prefixes = getThruputPrefixes(flowPacket.sender)
+    val prefixes = getCachedThruputPrefixes(flowPacket.sender)
     // Filter out everything but FlowData
-    workFlows(flowPacket, flowPacket.flows)
+    workFlows(flowPacket, flowPacket.flows, prefixes)
+match {
+    case fd: FlowData =>
+      workPrefix(flowPacket, fd, prefixes)
+      workFlows(flowPacket, list.tail, prefixes)
+    case _ =>
+  }
+
   }
 }
-
+*/
