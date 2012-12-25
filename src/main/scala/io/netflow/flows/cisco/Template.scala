@@ -78,4 +78,3 @@ private[netflow] case class Template(id: Int, sender: InetSocketAddress, map: Ha
   lazy val hasDstAS = hasField(DST_AS)
   lazy val hasDirection = hasField(DIRECTION)
 }
-

@@ -18,7 +18,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
   private var thruputPrefixes: List[InetPrefix] = backend.getThruputPrefixes(sender)
   private var senderPrefixes: List[InetPrefix] = backend.getPrefixes(sender)
-  private var ciscoTemplates: HashMap[Int, cisco.Template] = HashMap()
+  private var ciscoTemplates = HashMap[Int, cisco.Template]()
 
   def receive = {
     case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
@@ -26,22 +26,6 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
 
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
-
-  private def getCiscoTemplate(id: Int) = ciscoTemplates.get(id) match {
-    case Some(tmpl: cisco.Template) =>
-      Some(tmpl)
-    case None =>
-      backend.ciscoTemplateFields(sender, id) match {
-        case Some(fields: HashMap[String, Int]) =>
-          cisco.Template(sender, id, fields) match {
-            case Some(tmpl: cisco.Template) =>
-              ciscoTemplates ++= Map(tmpl.id -> tmpl)
-              Some(tmpl)
-            case None => None
-          }
-        case None => None
-      }
-  }
 
   private def handleCisco(sender: InetSocketAddress, buf: ByteBuf): Option[FlowPacket] =
     Try(buf.getUnsignedShort(0)) match {
@@ -59,7 +43,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
         }
 
       case Success(version) if version == 9 || version == 10 =>
-        val flowPacket = new cisco.V9FlowPacket(sender, buf, getCiscoTemplate)
+        val flowPacket = new cisco.V9FlowPacket(sender, buf)
         backend.countDatagram(new DateTime, sender, false)
         save(flowPacket)
         Some(flowPacket)

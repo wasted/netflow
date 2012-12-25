@@ -5,6 +5,7 @@ import io.netflow.flows._
 import io.netty.buffer._
 
 import java.net.InetSocketAddress
+import scala.collection.immutable.HashMap
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -30,7 +31,7 @@ import java.net.InetSocketAddress
  * @param senderIP senderIP's IP Address
  * @param buf Netty ByteBuf containing the UDP Packet
  */
-private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf, getTemplate: (Int) => Option[Template]) extends FlowPacket {
+private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf) extends FlowPacket {
   private val V9_Header_Size = 20
   def senderIP() = sender.getAddress.getHostAddress
   def senderPort() = sender.getPort
@@ -91,7 +92,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf,
           } while (templateOffset - packetOffset <= packetOffset + flowsetLength)
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
-          getTemplate(flowsetId) match {
+          Template(sender, flowsetId) match {
             case Some(tmpl) =>
               val flowtype = if (tmpl.isIPFIX) "IPFIX" else "NetFlow v9"
               val flowdata = if (tmpl.isOptionTemplate) "Option" else "Master"
