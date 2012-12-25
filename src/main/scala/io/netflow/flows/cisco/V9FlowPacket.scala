@@ -6,6 +6,7 @@ import io.netty.buffer._
 
 import java.net.InetSocketAddress
 import scala.collection.immutable.HashMap
+import io.wasted.util.Tryo
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -130,9 +131,9 @@ private[netflow] class V9Flow(val sender: InetSocketAddress, buf: ByteBuf, val t
   val srcPort = buf.getUnsignedShort(template.typeOffset(L4_SRC_PORT))
   val dstPort = buf.getUnsignedShort(template.typeOffset(L4_DST_PORT))
   val srcAS = if (!template.hasSrcAS) 0 else
-    buf.getUnsignedShort(template.typeOffset(SRC_AS))
+    Tryo(buf.getUnsignedShort(template.typeOffset(SRC_AS))) getOrElse 0
   val dstAS = if (!template.hasDstAS) 0 else
-    buf.getUnsignedShort(template.typeOffset(DST_AS))
+    Tryo(buf.getUnsignedShort(template.typeOffset(DST_AS))) getOrElse 0
 
   private def getAddress(field1: Int, field2: Int) = {
     if (template.hasField(field1))

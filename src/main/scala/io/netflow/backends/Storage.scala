@@ -22,7 +22,7 @@ private[netflow] object Storage extends Logger {
 }
 
 private[netflow] trait Storage extends Logger {
-  def save(flowData: HashMap[(String, String), Long], sender: InetSocketAddress): Unit
+  def save(flowData: Map[(String, String), Long], sender: InetSocketAddress): Unit
   def save(template: cisco.Template): Unit
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]
 

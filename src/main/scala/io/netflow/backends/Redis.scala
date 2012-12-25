@@ -15,7 +15,7 @@ import java.net.{ InetAddress, InetSocketAddress }
 private[netflow] class Redis(host: String, port: Int) extends Storage with Thruput {
   private val redisClient = new RedisClient(host, port)
 
-  def save(flowData: HashMap[(String, String), Long], sender: InetSocketAddress) {
+  def save(flowData: Map[(String, String), Long], sender: InetSocketAddress) {
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
     val prefix = "netflow:" + senderIP + "/" + senderPort

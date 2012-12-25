@@ -13,6 +13,8 @@ import io.netty.channel.socket.DatagramPacket
 
 import org.joda.time.DateTime
 import akka.actor._
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) extends Actor with Thruput with Logger {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
@@ -27,8 +29,11 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
     case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
     case Flush =>
       backend.save(counters, sender)
-      counters = HashMap()
+      println(counters)
+      counters = Map()
   }
+
+  context.system.scheduler.schedule(5.seconds, 5.seconds, self, Flush)
 
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
@@ -91,7 +96,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
     }
   }
 
-  private var counters = HashMap[(String, String), Long]()
+  private var counters = Map[(String, String), Long]()
   private def hincrBy(str1: String, str2: String, inc: Long) =
     counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
 
