@@ -19,9 +19,15 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
   private var thruputPrefixes: List[InetPrefix] = backend.getThruputPrefixes(sender)
   private var senderPrefixes: List[InetPrefix] = backend.getPrefixes(sender)
   private var ciscoTemplates = HashMap[Int, cisco.Template]()
+  private val accountPerIP = false
+  private val accountPerIPProto = false
 
+  private case object Flush
   def receive = {
     case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
+    case Flush =>
+      backend.save(counters, sender)
+      counters = HashMap()
   }
 
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
@@ -68,21 +74,83 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
         // src - in
         findNetworks(flow.srcAddress) foreach { prefix =>
           ourFlow = true
-          backend.save(flowPacket, flow, flow.srcAddress, 'in, prefix.toString())
+          save(flowPacket, flow, flow.srcAddress, 'in, prefix.toString())
         }
 
         // dst - out
         findNetworks(flow.dstAddress) foreach { prefix =>
           ourFlow = true
-          backend.save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString())
+          save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString())
         }
 
         if (!ourFlow) { // invalid flow
           debug("Ignoring Flow: %s", flow)
-          backend.save(flowPacket, flow)
+          save(flowPacket, flow)
         }
       case _ =>
     }
   }
 
+  private var counters = HashMap[(String, String), Long]()
+  private def hincrBy(str1: String, str2: String, inc: Long) =
+    counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
+
+  // Handle invalid Flows
+  def save(flowPacket: FlowPacket, flow: FlowData) {
+  }
+
+  // Handle valid Flows
+
+  def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String) {
+    val dir = direction.name
+    val ip = localAddress.getHostAddress
+    val prot = flow.proto
+
+    val date = flowPacket.date
+    val year = date.getYear.toString
+    val month = date.getMonthOfYear.toString
+    val day = "%02d".format(date.getDayOfMonth)
+    val hour = "%02d".format(date.getHourOfDay)
+    val minute = "%02d".format(date.getMinuteOfHour)
+
+    def account(prefix: String, value: Long) {
+      hincrBy(prefix + ":years", year, value)
+      hincrBy(prefix + ":" + "year", month, value)
+      hincrBy(prefix + ":" + year + month, day, value)
+      hincrBy(prefix + ":" + year + month + day, hour, value)
+      hincrBy(prefix + ":" + year + month + day + "-" + hour, minute, value)
+    }
+
+    // Account per Sender
+    account("bytes:" + dir, flow.bytes)
+    account("pkts:" + dir, flow.pkts)
+
+    // Account per Sender with Protocols
+    if (accountPerIPProto) {
+      account("bytes:" + dir + ":" + prot, flow.bytes)
+      account("pkts:" + dir + ":" + prot, flow.pkts)
+    }
+
+    // Account per Sender and Network
+    account("bytes:" + dir + ":" + prefix, flow.bytes)
+    account("pkts:" + dir + ":" + prefix, flow.pkts)
+
+    // Account per Sender and Network with Protocols
+    if (accountPerIPProto) {
+      account("bytes:" + dir + ":" + prefix + ":" + prot, flow.bytes)
+      account("pkts:" + dir + ":" + prefix + ":" + prot, flow.pkts)
+    }
+
+    if (accountPerIP) {
+      // Account per Sender and IP
+      account("bytes:" + dir + ":" + ip, flow.bytes)
+      account("pkts:" + dir + ":" + ip, flow.pkts)
+
+      // Account per Sender and IP with Protocols
+      if (accountPerIPProto) {
+        account("bytes:" + dir + ":" + ip + ":" + prot, flow.bytes)
+        account("pkts:" + dir + ":" + ip + ":" + prot, flow.pkts)
+      }
+    }
+  }
 }

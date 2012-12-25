@@ -64,9 +64,9 @@ private[netflow] case class Template(id: Int, sender: InetSocketAddress, map: Ha
   def length() = map.get("length") getOrElse -1
   def flowsetId() = map.get("flowsetId") getOrElse -1
 
-  def isOptionTemplate() = false
-  def isNFv9() = (flowsetId == 0 || flowsetId == 1)
-  def isIPFIX() = (flowsetId == 2 || flowsetId == 3)
+  def isOptionTemplate = false
+  def isNFv9 = (flowsetId == 0 || flowsetId == 1)
+  def isIPFIX = (flowsetId == 2 || flowsetId == 3)
 
   def typeOffset(typeName: Int): Int = map.get("offset_" + typeName) getOrElse -1
   def typeLen(typeName: Int): Int = map.get("length_" + typeName) getOrElse Template.defaultTypeLengths(typeName)

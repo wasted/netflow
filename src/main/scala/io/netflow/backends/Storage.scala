@@ -14,7 +14,7 @@ private[netflow] object Storage extends Logger {
   private val host = Config.getString("redis.host", "127.0.0.1")
   private val port = Config.getInt("redis.port", 6379)
   private val maxConns = Config.getInt("backend.maxConns", 100)
-  private val newConnect = () => new Redis(host, port, false, false)
+  private val newConnect = () => new Redis(host, port)
 
   private val pool = new PooledResource[Storage](newConnect, maxConns)
   def start(): Option[Storage] = pool.get()
@@ -22,14 +22,8 @@ private[netflow] object Storage extends Logger {
 }
 
 private[netflow] trait Storage extends Logger {
-  // Save invalid Flows
-  def save(flowPacket: FlowPacket, flow: FlowData): Unit
-
-  // Save valid Flows
-  def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String): Unit
-
+  def save(flowData: HashMap[(String, String), Long], sender: InetSocketAddress): Unit
   def save(template: cisco.Template): Unit
-
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]
 
   // Validate the sender

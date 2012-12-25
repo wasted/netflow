@@ -12,68 +12,16 @@ import io.netty.util.CharsetUtil
 import java.util.UUID
 import java.net.{ InetAddress, InetSocketAddress }
 
-private[netflow] class Redis(host: String, port: Int, accountPerIP: Boolean, accountPerIPProto: Boolean) extends Storage with Thruput {
+private[netflow] class Redis(host: String, port: Int) extends Storage with Thruput {
   private val redisClient = new RedisClient(host, port)
 
-  // Handle invalid Flows
-  def save(flowPacket: FlowPacket, flow: FlowData) {
-  }
+  def save(flowData: HashMap[(String, String), Long], sender: InetSocketAddress) {
+    val senderIP = sender.getAddress.getHostAddress
+    val senderPort = sender.getPort
+    val prefix = "netflow:" + senderIP + "/" + senderPort
 
-  // Handle valid Flows
-
-  def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String) {
-    val senderIP = flowPacket.senderIP
-    val senderPort = flowPacket.senderPort
-
-    val dir = direction.name
-    val ip = localAddress.getHostAddress
-    val prot = flow.proto
-
-    val date = flowPacket.date
-    val year = date.getYear.toString
-    val month = date.getMonthOfYear.toString
-    val day = "%02d".format(date.getDayOfMonth)
-    val hour = "%02d".format(date.getHourOfDay)
-    val minute = "%02d".format(date.getMinuteOfHour)
-
-    def account(prefix: String, value: Long) {
-      redisClient.hincrby(prefix + ":years", year, value)
-      redisClient.hincrby(prefix + ":" + "year", month, value)
-      redisClient.hincrby(prefix + ":" + year + month, day, value)
-      redisClient.hincrby(prefix + ":" + year + month + day, hour, value)
-      redisClient.hincrby(prefix + ":" + year + month + day + "-" + hour, minute, value)
-    }
-
-    // Account per Sender
-    account("netflow:" + senderIP + "/" + senderPort + ":bytes:" + dir, flow.bytes)
-    account("netflow:" + senderIP + "/" + senderPort + ":pkts:" + dir, flow.pkts)
-
-    // Account per Sender with Protocols
-    if (accountPerIPProto) {
-      account("netflow:" + senderIP + "/" + senderPort + ":bytes:" + dir + ":" + prot, flow.bytes)
-      account("netflow:" + senderIP + "/" + senderPort + ":pkts:" + dir + ":" + prot, flow.pkts)
-    }
-
-    // Account per Sender and Network
-    account("netflow:" + senderIP + "/" + senderPort + ":bytes:" + dir + ":" + prefix, flow.bytes)
-    account("netflow:" + senderIP + "/" + senderPort + ":pkts:" + dir + ":" + prefix, flow.pkts)
-
-    // Account per Sender and Network with Protocols
-    if (accountPerIPProto) {
-      account("netflow:" + senderIP + "/" + senderPort + ":bytes:" + dir + ":" + prefix + ":" + prot, flow.bytes)
-      account("netflow:" + senderIP + "/" + senderPort + ":pkts:" + dir + ":" + prefix + ":" + prot, flow.pkts)
-    }
-
-    if (accountPerIP) {
-      // Account per Sender and IP
-      account("netflow:" + senderIP + "/" + senderPort + ":bytes:" + dir + ":" + ip, flow.bytes)
-      account("netflow:" + senderIP + "/" + senderPort + ":pkts:" + dir + ":" + ip, flow.pkts)
-
-      // Account per Sender and IP with Protocols
-      if (accountPerIPProto) {
-        account("netflow:" + senderIP + "/" + senderPort + ":bytes:" + dir + ":" + ip + ":" + prot, flow.bytes)
-        account("netflow:" + senderIP + "/" + senderPort + ":pkts:" + dir + ":" + ip + ":" + prot, flow.pkts)
-      }
+    flowData foreach {
+      case ((hash, name), value) => redisClient.hincrby(prefix + ":" + hash, name, value)
     }
   }
 
