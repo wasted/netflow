@@ -10,9 +10,9 @@ import scala.collection.JavaConversions._
 
 import io.netty.util.CharsetUtil
 import java.util.UUID
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 
-private[netflow] class Redis(host: String, port: Int) extends Storage with Thruput {
+private[netflow] class Redis(host: String, port: Int) extends Storage {
   private val redisClient = new RedisClient(host, port)
 
   def save(flowData: Map[(String, String), Long], sender: InetSocketAddress) {
@@ -59,7 +59,6 @@ private[netflow] class Redis(host: String, port: Int) extends Storage with Thrup
   def getThruputPlatform(id: String): Option[ThruputPlatform] = {
     Tryo(UUID.fromString(id)) match {
       case Some(uuid) =>
-        //val map = redisClient.hgetall("thruput:" + id).asStringMap(CharsetUtil.UTF_8)
         val map = mapAsScalaMap(redisClient.hgetall("thruput:" + id).asStringMap(CharsetUtil.UTF_8))
         if (map.size == 0) return None
         for {

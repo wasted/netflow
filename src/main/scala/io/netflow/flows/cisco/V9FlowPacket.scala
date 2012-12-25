@@ -5,7 +5,6 @@ import io.netflow.flows._
 import io.netty.buffer._
 
 import java.net.InetSocketAddress
-import scala.collection.immutable.HashMap
 import io.wasted.util.Tryo
 
 /**

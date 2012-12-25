@@ -5,7 +5,7 @@ import io.wasted.util._
 
 import scala.collection.immutable.HashMap
 import scala.util.{ Try, Success, Failure }
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 
 import org.joda.time.DateTime
 
@@ -14,6 +14,8 @@ private[netflow] object Storage extends Logger {
   private val host = Config.getString("redis.host", "127.0.0.1")
   private val port = Config.getInt("redis.port", 6379)
   private val maxConns = Config.getInt("backend.maxConns", 100)
+  val pollInterval = Config.getInt("backend.pollInterval", 10)
+
   private val newConnect = () => new Redis(host, port)
 
   private val pool = new PooledResource[Storage](newConnect, maxConns)

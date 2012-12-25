@@ -16,24 +16,41 @@ import akka.actor._
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) extends Actor with Thruput with Logger {
+private[netflow] class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with Thruput with Logger {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
-  private var thruputPrefixes: List[InetPrefix] = backend.getThruputPrefixes(sender)
-  private var senderPrefixes: List[InetPrefix] = backend.getPrefixes(sender)
-  private var ciscoTemplates = HashMap[Int, cisco.Template]()
+  protected var thruputPrefixes: List[InetPrefix] = List()
+  private var senderPrefixes: List[InetPrefix] = List()
   private val accountPerIP = false
   private val accountPerIPProto = false
 
-  private case object Flush
-  def receive = {
-    case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
-    case Flush =>
-      backend.save(counters, sender)
-      println(counters)
-      counters = Map()
+  private case object Flush {
+    def schedule() = context.system.scheduler.scheduleOnce(5.seconds, self, Flush)
+    var lastPoll = new DateTime().minusSeconds(Storage.pollInterval + 1)
+
+    def action() {
+      if (counters.size > 0) {
+        backend.save(counters, sender)
+        counters = HashMap()
+      }
+      val repoll = new DateTime().minusSeconds(Storage.pollInterval).isAfter(lastPoll)
+      if (repoll) {
+        thruputPrefixes = backend.getThruputPrefixes(sender)
+        senderPrefixes = backend.getPrefixes(sender)
+        lastPoll = new DateTime
+      }
+      schedule()
+    }
   }
 
-  context.system.scheduler.schedule(5.seconds, 5.seconds, self, Flush)
+  private var counters = HashMap[(String, String), Long]()
+  private def hincrBy(str1: String, str2: String, inc: Long) =
+    counters ++= HashMap((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
+
+  def receive = {
+    case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
+    case Flush => Flush.action()
+  }
+  Flush.action()
 
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
@@ -66,10 +83,8 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
     }
 
   private def save(flowPacket: FlowPacket): Unit = {
-    //thruput(flowPacket)
     flowPacket.flows foreach {
       case tmpl: cisco.Template =>
-        ciscoTemplates ++= Map(tmpl.id -> tmpl)
         backend.save(tmpl)
 
       /* Handle FlowData */
@@ -88,6 +103,16 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
           save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString())
         }
 
+        // thruput - in
+        findThruputNetworks(flow.srcAddress) foreach { prefix =>
+          thruput(sender, prefix, flow.dstAddress, flow)
+        }
+
+        // thruput - out
+        findThruputNetworks(flow.dstAddress) foreach { prefix =>
+          thruput(sender, prefix, flow.srcAddress, flow)
+        }
+
         if (!ourFlow) { // invalid flow
           debug("Ignoring Flow: %s", flow)
           save(flowPacket, flow)
@@ -95,10 +120,6 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
       case _ =>
     }
   }
-
-  private var counters = Map[(String, String), Long]()
-  private def hincrBy(str1: String, str2: String, inc: Long) =
-    counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
 
   // Handle invalid Flows
   def save(flowPacket: FlowPacket, flow: FlowData) {
