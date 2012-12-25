@@ -37,14 +37,14 @@ private[netflow] class SenderActor(sender: InetSocketAddress, backend: Storage) 
 
       case Success(version) if version == 5 =>
         Tryo(new cisco.V5FlowPacket(sender, buf)) map { flowPacket =>
-          backend.countDatagram(new DateTime, sender, false)
+          backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
           save(flowPacket)
           flowPacket
         }
 
       case Success(version) if version == 9 || version == 10 =>
         val flowPacket = new cisco.V9FlowPacket(sender, buf)
-        backend.countDatagram(new DateTime, sender, false)
+        backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
         save(flowPacket)
         Some(flowPacket)
 

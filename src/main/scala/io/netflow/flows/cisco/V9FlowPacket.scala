@@ -70,7 +70,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
               case e: Throwable => warn(e.toString, e); debug(e.toString, e)
             }
             templateOffset += templateSize
-          } while (templateOffset - packetOffset <= packetOffset + flowsetLength)
+          } while (templateOffset - packetOffset < flowsetLength)
 
         case 1 | 3 => // template flowset - 1 NetFlow v9, 3 IPFIX
           val flowtype = if (flowsetId == 0) "NetFlow v9" else "IPFIX"
@@ -89,7 +89,7 @@ private[netflow] class V9FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
               case e: Throwable => warn(e.toString, e); debug(e.toString, e)
             }
             templateOffset += templateSize
-          } while (templateOffset - packetOffset <= packetOffset + flowsetLength)
+          } while (templateOffset - packetOffset < flowsetLength)
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           Template(sender, flowsetId) match {
