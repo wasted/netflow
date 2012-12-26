@@ -4,7 +4,6 @@ import io.netflow.flows._
 import io.netflow.backends._
 import io.wasted.util._
 
-import scala.collection.immutable.HashMap
 import scala.util.{ Try, Success, Failure }
 import java.net.{ InetAddress, InetSocketAddress }
 
@@ -30,7 +29,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
     def action() {
       if (counters.size > 0) {
         backend.save(counters, sender)
-        counters = HashMap()
+        counters = Map()
       }
       val repoll = new DateTime().minusSeconds(Storage.pollInterval).isAfter(lastPoll)
       if (repoll) {
@@ -42,9 +41,9 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
     }
   }
 
-  private var counters = HashMap[(String, String), Long]()
+  private var counters = Map[(String, String), Long]()
   private def hincrBy(str1: String, str2: String, inc: Long) =
-    counters ++= HashMap((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
+    counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
 
   def receive = {
     case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
