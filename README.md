@@ -32,6 +32,15 @@ This project aims to provide an extensible flow collector written in [Scala](htt
 - NetFlow v8 - totally weird format, would take too much time. [Check yourself…](http://netflow.caligare.com/netflow_v8.htm)
 
 
+## Compiling
+
+You need our utility library [wasted-util](http://wasted.github.com/scala-util) installed in your local sbt repository, since it's not mirrored on any Ivy repository yet.
+
+```
+  ./sbt compile
+```
+
+
 ## Running
 
 ```
