@@ -9,7 +9,7 @@ sbtjar=sbt-launch.jar
 
 if [ ! -f $sbtjar ]; then
 	echo "downloading $sbtjar" 1>&2
-	curl -O http://repo.typesafe.com/typesafe/ivy-releases/org.scala-tools.sbt/sbt-launch/0.12.1/$sbtjar
+	curl -O http://repo.typesafe.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.12.1/$sbtjar
 fi
 
 test -f $sbtjar || exit 1
