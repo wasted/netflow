@@ -15,6 +15,7 @@ private[netflow] object Storage extends Logger {
   private val port = Config.getInt("redis.port", 6379)
   private val maxConns = Config.getInt("backend.maxConns", 100)
   val pollInterval = Config.getInt("backend.pollInterval", 10)
+  val flushInterval = Config.getInt("backend.flushInterval", 5)
 
   private val newConnect = () => new Redis(host, port)
 

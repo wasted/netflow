@@ -24,7 +24,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   private val accountPerIPProto = false
 
   private case object Flush {
-    def schedule() = context.system.scheduler.scheduleOnce(5.seconds, self, Flush)
+    def schedule() = context.system.scheduler.scheduleOnce(Storage.flushInterval.seconds, self, Flush)
     var lastPoll = new DateTime().minusSeconds(Storage.pollInterval + 1)
 
     def action() {
