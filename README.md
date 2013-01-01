@@ -110,17 +110,15 @@ java											\
 	-Xmn1024M      								\
 	-server      								\
 	-XX:+AggressiveOpts      					\
-	-XX:+UseParNewGC      						\
-	-XX:+UseConcMarkSweepGC      				\
-	-XX:+CMSIncrementalMode      				\
-	-XX:MaxPermSize=512m      					\
 	-Dconfig.file=application.conf				\
 	-Dlogback.configurationFile=io.log.xml		\
-	-Dio.netty.epollBugWorkaround=true			\
-	-jar $JAR
+	-Dio.netty.epollBugWorkaround=true			\ # only useful on Linux as it is bugged
+	-jar netflow.jar
 ```
 
-You can find a sample.conf at [src/main/resources/sample.conf](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf). A sample logback configuration for production use is at [src/main/resources/logback.production.xml](https://raw.github.com/wasted/netflow/master/src/main/resources/logback.production.xml).
+You can find a sample.conf at [src/main/resources/sample.conf](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf).
+
+A sample logback configuration for production use is at [src/main/resources/logback.production.xml](https://raw.github.com/wasted/netflow/master/src/main/resources/logback.production.xml).
 
 We are open to suggestions for some more optimal startup parameters. ;)
 
