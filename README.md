@@ -83,7 +83,7 @@ Go inside the project's directory and run the sbt command:
 
 ## Packaging and Deployment
 
-If you think it's ready for deployment (**we don't yet**), you can make yourself a .jar-file by running:
+If you think it's ready for deployment, you can make yourself a .jar-file by running:
 
 ```
   ./sbt assembly
@@ -98,7 +98,7 @@ Since NetFlow uses UDP, there is no way to verify the sender through ACK like th
 
 #### Q2: Why did you choose a slash(/)-notation to separate IPs from Ports inside the Key-Value-Store?
 
-Since we did not want to implement two parsers for handling **IPv4**:**Port** and [**IPv6**]:**Port** formats like [**2001:db8::1**]:**80**, we decided to use this notation throughout the product to simplify the code.
+Since we did not want to implement two parsers for handling **IPv4:Port** and **[IPv6]:Port** formats like **[2001:db8::1]:80**, we decided to use this notation throughout the product to simplify the code.
 
 #### Q3: I just started the collector with loglevel Debug, it shows 0/24 flows passed, why?
 
@@ -110,9 +110,15 @@ Since we are heavy BSD fanatics, we encourage everyone to use [FreeBSD ng_netflo
 
 #### Q5: I don't have a JunOS, Cisco IOS, FreeBSD or OpenBSD based router, what can i do?
 
-Our suggestion would be to check your Switch's capability for [port mirroring](http://en.wikipedia.org/wiki/Port_mirroring). Mirror your upstream port to a FreeBSD machine which does the actual NetFlow collection and exporting.
+Our suggestion would be to check your Switch's capability for [port mirroring](http://en.wikipedia.org/wiki/Port_mirroring).
 
-**This is also beneficial since the NetFlow collection does not impair your router's performance.**
+Mirror your upstream port to a FreeBSD machine which does the actual NetFlow collection and exporting.
+
+**This is also beneficial since the NetFlow collection does not impact your router's performance.**
+
+#### Q6: Is it stable and ready for production?
+
+Our patchlevel internally used might be production level, but we are heavily developing towards our first stable public release!
 
 ## Troubleshooting
 
