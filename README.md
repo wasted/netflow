@@ -43,11 +43,21 @@ You need our utility library [wasted-util](http://wasted.github.com/scala-util) 
 
 ## Configuration
 
-Since we are using a Key-Value backed architecture, we are unable to "search" for things. We are only able to look them up. So we start with a set of allowed sender IP/Port combinations of your NetFlow exporter. If you do not know which IP your router uses to export NetFlows, use tcpdump on the Machine you are sending it to and run [tcpdump](http://www.tcpdump.org/tcpdump_man.html) to find out the IP/Port. If you are not familiar with tcpdump yet (you really should be!), check out our Troubleshooting Section below.
+Since we are using a Key-Value backed architecture, we are unable to "search" for things. We are only able to look them up. So we start with a set of allowed sender IP/Port combinations of your NetFlow exporter.
 
-Another suggestion is, if your router supports it, set the exporter's source IP and Port to something static.
+#### Finding the IP and Port
+
+If you do not know which IP your router uses to export NetFlows, just launch [netflow.io](http://netflow.io/) in Loglevel Debug (default) and it will print "ignoring flow"-lines which will tell you about the IP/Port combination.
+
+If that does not work, use [tcpdump](http://www.tcpdump.org/tcpdump_man.html) to find out the IP and Port. If you are not familiar with tcpdump yet (you really should be!), check out our Troubleshooting Section below.
+
+#### Our suggestion
+
+If your router supports it, set the exporter's source IP and Port to something static.
 
 Most flow-collectors will use a new port when the daemon restarts or the system reboot. Keep that in mind!
+
+#### Setting up the Database
 
 Launch the redis-cli on your shell:
 
@@ -81,13 +91,39 @@ Go inside the project's directory and run the sbt command:
 ```
 
 
-## Packaging and Deployment
+## Packaging
 
 If you think it's ready for deployment, you can make yourself a .jar-file by running:
 
 ```
   ./sbt assembly
 ```
+
+## Deployment
+
+Running it with your custom configuration (application.conf), you can start it with something like this:
+
+```
+java											\
+	-Xms2048M      								\
+	-Xmx2048M      								\
+	-Xmn1024M      								\
+	-server      								\
+	-XX:+AggressiveOpts      					\
+	-XX:+UseParNewGC      						\
+	-XX:+UseConcMarkSweepGC      				\
+	-XX:+CMSIncrementalMode      				\
+	-XX:MaxPermSize=512m      					\
+	-Dconfig.file=application.conf				\
+	-Dlogback.configurationFile=io.log.xml		\
+	-Dio.netty.epollBugWorkaround=true			\
+	-jar $JAR
+```
+
+You can find a sample.conf at [src/main/resources/sample.conf](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf). A sample logback configuration for production use is at [src/main/resources/logback.production.xml](https://raw.github.com/wasted/netflow/master/src/main/resources/logback.production.xml).
+
+We are open to suggestions for some more optimal startup parameters. ;)
+
 
 ## FAQ - Frequently Asked Questions
 
@@ -138,7 +174,7 @@ As a working example for Linux:
 
 If you suspect the UDP Packet coming from a whole network, you can tell tcpdump to filter for it.
 
-You might want to subtitute the port 2250 with the port your [netflow.io collector](http://netflow.io) is running on.
+You might want to subtitute the default port 2250 with the port your [netflow.io](http://netflow.io/) collector is running on.
 
 ```
 # tcpdump -i eth0 net 10.0.0.0/24 and port 2250
