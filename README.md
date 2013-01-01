@@ -136,15 +136,15 @@ As a working example for Linux:
 # tcpdump -i eth0 host 10.0.0.5
 ```
 
-If you suspect the UDP Packet coming from a whole network, you can tell tcpdump to filter for it:
+If you suspect the UDP Packet coming from a whole network, you can tell tcpdump to filter for it.
+
+You might want to subtitute the port with the port netflow.io collector is running on.
 
 ```
 # tcpdump -i eth0 net 10.0.0.0/24 and port 2250
 ```
 
-You might want to subtitute the port with the port netflow.io/the collector is running on.
-
-Just grab the source-ip and port where packets are coming from and add it into the database as formatted **IP**/**Port**.
+Just grab the source-ip and port where packets are coming from and add it into the database as formatted **IP/Port**.
 
 By the way, tcpdump has an awesome [manual](http://www.tcpdump.org/tcpdump_man.html)!
 
