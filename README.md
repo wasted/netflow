@@ -75,7 +75,7 @@ sadd senders 10.0.0.1/1337
 Now add the networks you would like to monitor from that sender. **Of course we also support IPv6!**
 
 ```
-sadd sender:10.0.0.1/1337 192.168.0.0/8
+sadd sender:10.0.0.1/1337 192.168.0.0/24
 sadd sender:10.0.0.1/1337 2001:db8::/32
 ```
 
