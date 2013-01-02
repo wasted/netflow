@@ -148,7 +148,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
 
     val date = flowPacket.date
     val year = date.getYear.toString
-    val month = date.getMonthOfYear.toString
+    val month = "%02d".format(date.getMonthOfYear)
     val day = "%02d".format(date.getDayOfMonth)
     val hour = "%02d".format(date.getHourOfDay)
     val minute = "%02d".format(date.getMinuteOfHour)
