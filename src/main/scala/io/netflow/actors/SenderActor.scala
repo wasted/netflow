@@ -21,6 +21,15 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   private var senderPrefixes: List[InetPrefix] = List()
   private val accountPerIP = false
   private val accountPerIPProto = false
+  private var cancellable = Shutdown.schedule()
+
+  private case object Shutdown {
+    def schedule() = context.system.scheduler.scheduleOnce(5.minutes, self, Shutdown)
+    def avoid() {
+      cancellable.cancel
+      cancellable = schedule()
+    }
+  }
 
   private case object Flush {
     def schedule() = context.system.scheduler.scheduleOnce(Storage.flushInterval.seconds, self, Flush)
@@ -46,8 +55,14 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
     counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
 
   def receive = {
-    case msg: DatagramPacket => handleCisco(msg.remoteAddress, msg.data) //getOrElse
-    case Flush => Flush.action()
+    case Shutdown =>
+      io.netflow.Service.removeActorFor(sender)
+      context.stop(self)
+    case msg: DatagramPacket =>
+      Shutdown.avoid()
+      handleCisco(msg.remoteAddress, msg.data) //getOrElse
+    case Flush =>
+      Flush.action()
   }
   Flush.action()
 
