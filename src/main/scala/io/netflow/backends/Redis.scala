@@ -41,8 +41,8 @@ private[netflow] class Redis(host: String, port: Int) extends Storage {
 
   def countDatagram(date: DateTime, sender: InetSocketAddress, kind: String, flowsPassed: Int = 0) {
     val senderAddr = sender.getAddress.getHostAddress + "/" + sender.getPort
-    redisClient.hincrby("router:udp:" + senderAddr, kind, 1)
-    redisClient.hset("router:udp:" + senderAddr, "last", date.getMillis.toString)
+    redisClient.hincrby("stats:" + senderAddr, kind, 1)
+    redisClient.hset("stats:" + senderAddr, "last", date.getMillis.toString)
   }
 
   def acceptFrom(sender: InetSocketAddress): Boolean = {
