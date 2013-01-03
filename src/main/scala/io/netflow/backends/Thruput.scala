@@ -4,6 +4,9 @@ import io.netflow.flows._
 import io.wasted.util._
 import io.wasted.util.http._
 
+import scala.util.{ Try, Success, Failure }
+import scala.concurrent._
+import java.util.concurrent.TimeUnit
 import java.net.{ InetSocketAddress, InetAddress }
 import java.util.UUID
 
@@ -29,12 +32,12 @@ private[netflow] trait Thruput {
   protected val backend: Storage
   protected var thruputPrefixes: List[InetPrefix]
 
-  protected val thruputHttpClient = HttpClient()
+  protected val thruputHttpClient = HttpClient(2)
 
   protected val thruput = (sender: InetSocketAddress, prefix: InetPrefix, addr: InetAddress, fd: FlowData) =>
     backend.getThruputRecipients(sender, prefix).groupBy(_.platform) foreach { platformRcpts =>
       val rcpt = platformRcpts._1
-      thruputHttpClient.thruput(rcpt.url, rcpt.auth, rcpt.sign, rcpt.msg(fd, addr, platformRcpts._2.flatMap(_.toUser)))
+      Tryo(thruputHttpClient.thruput(rcpt.url, rcpt.auth, rcpt.sign, rcpt.msg(fd, addr, platformRcpts._2.flatMap(_.toUser))))
     }
 
 }

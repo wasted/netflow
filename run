@@ -1,0 +1,24 @@
+#!/bin/sh
+
+if [ "$1" == "-dbg" ] || [ "$2" == "-dbg" ]; then
+  JAVA_OPTS="$JAVA_OPTS -agentpath:/opt/yourkit/bin/linux-x86-64/libyjpagent.so"
+fi
+
+if [ "$1" == "-gc" ] || [ "$2" == "-gc" ]; then
+  JAVA_OPTS="$JAVA_OPTS \
+  -XX:+PrintGC          \
+  -XX:+PrintGCDetails   \
+  -XX:+PrintGCTimeStamps"
+fi
+
+java -ea $JAVA_OPTS                   \
+  -XX:+AggressiveOpts                 \
+  -XX:+OptimizeStringConcat           \
+  -XX:+UseParallelGC                  \
+  -XX:SurvivorRatio=3                 \
+  -Dio.netty.epollBugWorkaround=true  \
+  -Xms128M                            \
+  -Xmx1G                              \
+  -server                             \
+  -jar target/netflow-$( git describe --always ).jar
+

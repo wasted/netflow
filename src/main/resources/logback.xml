@@ -6,7 +6,7 @@
 		</encoder>
 	</appender>
 
-	<root level="DEBUG">
+	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 	</root>
 
@@ -14,9 +14,9 @@
   <logger name="Inet6Prefix" level="WARN" />
 
   <logger name="V5Flow" level="WARN" />
-  <logger name="V5FlowPacket" level="WARN" />
+  <logger name="V5FlowPacket" level="INFO" />
 
   <logger name="V9Flow" level="WARN" />
-  <!-- <logger name="V9FlowPacket" level="WARN" /> -->
+  <logger name="V9FlowPacket" level="INFO" />
 
 </configuration>

@@ -60,7 +60,7 @@ private[netflow] object V9FlowPacket extends Logger {
         case 0 | 2 => // template flowset - 0 NetFlow v9, 2 IPFIX
           val flowtype = if (flowsetId == 0) "NetFlow v9" else "IPFIX"
           var templateOffset = packetOffset + 4
-          info(flowtype + " Template FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
+          debug(flowtype + " Template FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           do {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
             val templateSize = fieldCount * 4 + 4
@@ -77,7 +77,7 @@ private[netflow] object V9FlowPacket extends Logger {
 
         case 1 | 3 => // template flowset - 1 NetFlow v9, 3 IPFIX
           val flowtype = if (flowsetId == 0) "NetFlow v9" else "IPFIX"
-          info(flowtype + " OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
+          debug(flowtype + " OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           var templateOffset = packetOffset + 4
           do {
             val scopeLen = buf.getUnsignedShort(templateOffset + 2)
@@ -99,7 +99,7 @@ private[netflow] object V9FlowPacket extends Logger {
             case Some(tmpl) =>
               val flowtype = if (tmpl.isIPFIX) "IPFIX" else "NetFlow v9"
               val flowdata = if (tmpl.isOptionTemplate) "Option" else "Master"
-              info(flowtype + " " + flowdata + " FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
+              debug(flowtype + " " + flowdata + " FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
               var recordOffset = packetOffset + 4
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
@@ -117,7 +117,13 @@ private[netflow] object V9FlowPacket extends Logger {
       }
       packetOffset += flowsetLength.toInt
     }
-    info("From " + senderIP + "/" + senderPort + " (" + flowsetCounter + "/" + count + " flows passed)")
+
+    val receivedFlows = flows.
+      groupBy(_.getClass.getSimpleName).
+      map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).
+      mkString(", ")
+
+    info("From " + senderIP + "/" + senderPort + " (" + flowsetCounter + "/" + count + " flows passed, " + receivedFlows + ")")
     V9FlowPacket(sender, count, uptime, unix_secs, packageSeq, flows)
   }
 
