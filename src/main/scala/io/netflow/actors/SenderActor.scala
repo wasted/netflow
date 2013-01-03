@@ -151,7 +151,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       " (" + flowPacket.flows.length + "/" + flowPacket.count + " flows passed, " + recvdFlowsStr + ")")
 
     // count them to database
-    backend.countDatagram(new DateTime, sender, "good", flowPacket.flows.length)
+    backend.countDatagram(new DateTime, sender, flowPacket.version, flowPacket.flows.length)
     recvdFlows foreach { rcvd =>
       backend.countDatagram(new DateTime, sender, rcvd._1, rcvd._2.length)
     }

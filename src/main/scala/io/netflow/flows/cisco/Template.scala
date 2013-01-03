@@ -58,8 +58,8 @@ private[netflow] object Template {
 
 private[netflow] case class Template(id: Int, sender: InetSocketAddress, map: HashMap[String, Int]) extends Flow {
   lazy val version = {
-    val nfv = if (isNFv9) "9" else "10 (IPFIX)"
-    "NetFlow v" + nfv + " Template"
+    val nfv = if (isNFv9) "9" else "10"
+    "netflow:" + nfv + ":template"
   }
   lazy val stringMap = map.foldRight(HashMap[String, String]()) { (m, hm) => hm ++ Map(m._1 -> m._2.toString) }
   lazy val arrayMap: Array[String] = map.flatMap(b => Array(b._1, b._2.toString)).toArray

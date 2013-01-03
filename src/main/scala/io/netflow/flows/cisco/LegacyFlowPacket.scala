@@ -70,7 +70,7 @@ private[netflow] case class LegacyFlowPacket(
   uptime: Long,
   unix_secs: Long,
   flows: List[Flow]) extends FlowPacket {
-  lazy val version = "NetFlow v" + versionNumber
+  lazy val version = "netflow:" + versionNumber + ":packet"
 }
 
 /**
@@ -161,6 +161,6 @@ private[netflow] case class LegacyFlow(
   bytes: Long,
   proto: Int,
   tos: Int) extends FlowData {
-  lazy val version = "NetFlow v" + versionNumber
+  lazy val version = "netflow:" + versionNumber + ":flow"
 }
 

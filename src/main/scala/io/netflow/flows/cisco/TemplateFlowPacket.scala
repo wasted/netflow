@@ -128,7 +128,7 @@ private[netflow] case class TemplateFlowPacket(
   uptime: Long,
   unix_secs: Long,
   flows: List[Flow]) extends FlowPacket {
-  lazy val version = "NetFlow v" + versionNumber
+  lazy val version = "netflow:" + versionNumber + ":packet"
 }
 
 private[netflow] object TemplateFlow {
@@ -202,5 +202,5 @@ private[netflow] case class TemplateFlow(
   bytes: Long,
   proto: Int,
   tos: Int) extends FlowData {
-  lazy val version = "NetFlow v" + versionNumber
+  lazy val version = "netflow:" + versionNumber + ":flow"
 }
