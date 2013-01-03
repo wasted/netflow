@@ -42,16 +42,15 @@ object Server extends App with Logger { PS =>
       }
     } match {
       case Success(v) => Some(v)
-      case Failure(f) => f.printStackTrace; error("Unable to bind to that ip:port combination. Check your configuration."); debug(f); stop; return
-    }
-
-    if (servers.length == 0) {
-      error("Not listening on any ip:port. Set tcp.listen accordingly.")
-      stop
-      return
+      case Failure(f) =>
+        error("Unable to bind to that ip:port combination. Check your configuration.")
+        debug(f)
+        stop
+        return
     }
 
     info("Ready")
+
     // Add Shutdown Hook to cleanly shutdown Netty
     Runtime.getRuntime.addShutdownHook(new Thread {
       override def run() { PS.stop }

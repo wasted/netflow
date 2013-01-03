@@ -8,7 +8,7 @@ import io.netty.buffer._
 import java.net.{ InetAddress, InetSocketAddress }
 
 /**
- * NetFlow Version 9 Packet - FlowSet DataSet
+ * NetFlow Version 9 or 10 (IPFIX) Packet - FlowSet DataSet
  *
  * *-------*---------------*------------------------------------------------------*
  * | Bytes | Contents      | Description                                          |
@@ -28,16 +28,17 @@ import java.net.{ InetAddress, InetSocketAddress }
  * | 20-   | others        | Unused (zero) bytes                                  |
  * *-------*---------------*------------------------------------------------------*
  */
-private[netflow] object V9FlowPacket extends Logger {
+private[netflow] object TemplateFlowPacket extends Logger {
   private val V9_Header_Size = 20
 
   /**
-   * Parse a v9 Flow Packet
+   * Parse a v9 or v10 (IPFIX) Flow Packet
    *
+   * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): V9FlowPacket = {
+  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): TemplateFlowPacket = {
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
     if (buf.readableBytes < V9_Header_Size)
@@ -97,14 +98,12 @@ private[netflow] object V9FlowPacket extends Logger {
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           Template(sender, flowsetId) match {
             case Some(tmpl) =>
-              val flowtype = if (tmpl.isIPFIX) "IPFIX" else "NetFlow v9"
-              val flowdata = if (tmpl.isOptionTemplate) "Option" else "Master"
-              debug(flowtype + " " + flowdata + " FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
+              val flowversion = if (tmpl.isIPFIX) 10 else 9
               var recordOffset = packetOffset + 4
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
                   val buffer = buf.copy(recordOffset, tmpl.length)
-                  flows :+= V9Flow(sender, buffer, tmpl)
+                  flows :+= TemplateFlow(flowversion, sender, buffer, tmpl)
                   flowsetCounter += 1
                 } catch {
                   case e: Throwable => warn(e.toString, e); e.printStackTrace
@@ -117,36 +116,32 @@ private[netflow] object V9FlowPacket extends Logger {
       }
       packetOffset += flowsetLength.toInt
     }
-
-    val receivedFlows = flows.
-      groupBy(_.getClass.getSimpleName).
-      map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).
-      mkString(", ")
-
-    info("From " + senderIP + "/" + senderPort + " (" + flowsetCounter + "/" + count + " flows passed, " + receivedFlows + ")")
-    V9FlowPacket(sender, count, uptime, unix_secs, packageSeq, flows)
+    TemplateFlowPacket(version, sender, count, uptime, unix_secs, flows)
   }
 
 }
 
-private[netflow] case class V9FlowPacket(
+private[netflow] case class TemplateFlowPacket(
+  versionNumber: Int,
   sender: InetSocketAddress,
   count: Int,
   uptime: Long,
   unix_secs: Long,
-  flowSequence: Long,
-  flows: List[Flow]) extends FlowPacket
+  flows: List[Flow]) extends FlowPacket {
+  lazy val version = "NetFlow v" + versionNumber
+}
 
-private[netflow] object V9Flow extends Logger {
+private[netflow] object TemplateFlow {
   import FieldDefinition._
 
   /**
-   * Parse a v9 Flow
+   * Parse a v9 or IPFIX Flow
    *
+   * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, template: Template): V9Flow = {
+  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf, template: Template): TemplateFlow = {
     if (buf.array.length < template.typeOffset(-1))
       throw new CorruptFlowTemplateException(sender, template.id)
 
@@ -188,15 +183,14 @@ private[netflow] object V9Flow extends Logger {
     val proto = buf.getUnsignedByte(template.typeOffset(PROT)).toInt
     val tos = buf.getUnsignedByte(template.typeOffset(SRC_TOS)).toInt
 
-    val f = V9Flow(sender.getAddress.getHostAddress, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
-    info(f.toString)
-    f
+    TemplateFlow(version, sender, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
   }
 
 }
 
-private[netflow] case class V9Flow(
-  senderIP: String,
+private[netflow] case class TemplateFlow(
+  versionNumber: Int,
+  sender: InetSocketAddress,
   srcPort: Int,
   dstPort: Int,
   srcAS: Int,
@@ -207,5 +201,6 @@ private[netflow] case class V9Flow(
   pkts: Long,
   bytes: Long,
   proto: Int,
-  tos: Int) extends FlowData
-
+  tos: Int) extends FlowData {
+  lazy val version = "NetFlow v" + versionNumber
+}

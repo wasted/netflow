@@ -8,4 +8,8 @@
 	<root level="WARN">
 		<appender-ref ref="STDOUT" />
 	</root>
+
+  <logger name="Inet4Prefix" level="WARN" />
+  <logger name="Inet6Prefix" level="WARN" />
+
 </configuration>

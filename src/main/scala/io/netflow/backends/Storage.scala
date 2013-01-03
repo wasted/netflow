@@ -32,8 +32,12 @@ private[netflow] trait Storage extends Logger {
   // Validate the sender
   def acceptFrom(sender: InetSocketAddress): Boolean
 
-  // Count DataGram from this sender
-  def countDatagram(date: DateTime, sender: InetSocketAddress, bad: Boolean, passedFlows: Int = 0): Unit
+  /**
+   * Count DataGram from this sender
+   *
+   * @param kind Should be "good", "bad" or the flow type (e.g. "NetFlow v9")
+   */
+  def countDatagram(date: DateTime, sender: InetSocketAddress, kind: String, passedFlows: Int = 0): Unit
 
   def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix): List[ThruputRecipient]
 

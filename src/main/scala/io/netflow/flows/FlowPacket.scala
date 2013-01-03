@@ -7,17 +7,28 @@ import java.net.{ InetAddress, InetSocketAddress }
 private[netflow] class FlowException(msg: String) extends Exception(msg)
 
 trait FlowPacket {
+  def version: String
+  def sender: InetSocketAddress
+  def senderIP = sender.getAddress.getHostAddress
+  def senderPort = sender.getPort
+
   def count: Int
   def uptime: Long
   def unix_secs: Long
-  def sender: InetSocketAddress
   def flows: List[Flow]
   lazy val date = new org.joda.time.DateTime(unix_secs * 1000)
 }
 
-trait Flow
+trait Flow {
+  def version: String
+}
 
 trait FlowData extends Flow {
+  def version: String
+  def sender: InetSocketAddress
+  def senderIP = sender.getAddress.getHostAddress
+  def senderPort = sender.getPort
+
   def srcPort: Int
   def dstPort: Int
   def srcAddress: InetAddress
@@ -30,7 +41,8 @@ trait FlowData extends Flow {
   def pkts: Long
   def bytes: Long
 
-  override def toString() = "%s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes".format(
+  override def toString() = "%s from %s/%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes".format(
+    version, senderIP, senderPort,
     srcAddress.getHostAddress, srcPort, srcAS,
     nextHop.getHostAddress,
     dstAddress.getHostAddress, dstPort, dstAS,
@@ -42,6 +54,8 @@ trait FlowData extends Flow {
 
   lazy val json = s"""
     {
+      "flowVersion": "$version",
+      "flowSender": "$senderIP/$senderPort",
       "srcPort": $srcPort,
       "dstPort": $dstPort,
       "srcAddress": "$srcAddressIP",

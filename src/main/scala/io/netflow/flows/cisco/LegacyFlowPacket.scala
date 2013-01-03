@@ -1,19 +1,25 @@
 package io.netflow.flows.cisco
 
 import io.netflow.flows._
-import io.wasted.util.Logger
+import io.wasted.util._
 
 import io.netty.buffer._
 
 import java.net.{ InetAddress, InetSocketAddress }
 
 /**
- * NetFlow Version 5 Packet
+ * NetFlow Version 1, 5, 6 or 7 Packet
+ *
+ * The common thing between all those NetFlow-Versions is the beginning of their
+ * header and most of their data. Another common thing is that they all only can
+ * work with IPv4.
+ *
+ * On NetFlows which don't have srcAS and dstAS, we simply set them to 0.
  *
  * *-------*---------------*------------------------------------------------------*
  * | Bytes | Contents      | Description                                          |
  * *-------*---------------*------------------------------------------------------*
- * | 0-1   | version       | The version of NetFlow records exported 009          |
+ * | 0-1   | version       | The version of NetFlow records exported 005          |
  * *-------*---------------*------------------------------------------------------*
  * | 2-3   | count         | Number of flows exported in this packet (1-30)       |
  * *-------*---------------*------------------------------------------------------*
@@ -23,62 +29,52 @@ import java.net.{ InetAddress, InetSocketAddress }
  * *-------*---------------*------------------------------------------------------*
  * | 12-15 | unix_nsecs    | Residual nanoseconds since 0000 UTC 1970             |
  * *-------*---------------*------------------------------------------------------*
- * | 16-19 | flow_sequence | Sequence counter of total flows seen                 |
- * *-------*---------------*------------------------------------------------------*
- * | 20    | engine_type   | Type of flow-switching engine                        |
- * *-------*---------------*------------------------------------------------------*
- * | 21    | engine_id     | Slot number of the flow-switching engine             |
- * *-------*---------------*------------------------------------------------------*
- * | 22-23 | reserved      | Unused (zero) bytes                                  |
- * *-------*---------------*------------------------------------------------------*
  */
-private[netflow] object V5FlowPacket extends Logger {
-  private val V5_Header_Size = 24
-  private val V5_Flow_Size = 48
+private[netflow] object LegacyFlowPacket {
+  val versionMap = Map(1 -> (16, 48), 5 -> (24, 48), 6 -> (24, 52), 7 -> (24, 52))
 
   /**
-   * Parse a v5 Flow Packet
+   * Parse a Version 1, 5, 6 or 7 Flow Packet
    *
+   * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): V5FlowPacket = {
-    val senderIP = sender.getAddress.getHostAddress
-    val senderPort = sender.getPort
+  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): LegacyFlowPacket = {
+    val version = buf.getUnsignedShort(0)
+    val (headerSize, flowSize) = versionMap(version)
     val len = buf.readableBytes
-    if (len < V5_Header_Size)
+    if (len < headerSize)
       throw new IncompleteFlowPacketHeaderException(sender)
 
     val count = buf.getUnsignedShort(2)
-    if (count <= 0 || len != V5_Header_Size + count * V5_Flow_Size)
+    if (count <= 0 || len != headerSize + count * flowSize)
       throw new CorruptFlowPacketException(sender)
 
     val uptime = buf.getUnsignedInt(4)
     val unix_secs = buf.getUnsignedInt(8)
-    val unix_nsecs = buf.getUnsignedInt(12)
-    val flowSequence = buf.getUnsignedInt(16)
 
     val flows = (0 to count - 1).toList map { i =>
-      V5Flow(sender, buf.copy(V5_Header_Size + (i * V5_Flow_Size), V5_Flow_Size))
+      LegacyFlow(version, sender, buf.copy(headerSize + (i * flowSize), flowSize))
     }
     val flowsetCounter = flows.length
 
-    info("From " + senderIP + "/" + senderPort + " (" + flowsetCounter + "/" + count + " flows passed)")
-    V5FlowPacket(sender, count, uptime, unix_secs, unix_nsecs, flowSequence, flows)
+    LegacyFlowPacket(version, sender, count, uptime, unix_secs, flows)
   }
 }
 
-private[netflow] case class V5FlowPacket(
+private[netflow] case class LegacyFlowPacket(
+  versionNumber: Int,
   sender: InetSocketAddress,
   count: Int,
   uptime: Long,
   unix_secs: Long,
-  unix_nsecs: Long,
-  flowSequence: Long,
-  flows: List[Flow]) extends FlowPacket
+  flows: List[Flow]) extends FlowPacket {
+  lazy val version = "NetFlow v" + versionNumber
+}
 
 /**
- * NetFlow Version 5 Flow
+ * NetFlow Version 1, 5, 6 or 7 Flow
  *
  * *-------*-----------*----------------------------------------------------------*
  * | Bytes | Contents  | Description                                              |
@@ -114,32 +110,27 @@ private[netflow] case class V5FlowPacket(
  * *-------*-----------*----------------------------------------------------------*
  * | 39    | tos       | IP type of service (ToS)                                 |
  * *-------*-----------*----------------------------------------------------------*
- * | 40-41 | src_as    | Autonomous system number of the source, either origin or |
- * |       |           | peer                                                     |
+ * | 40    | flags     | Cumulative OR of TCP flags                               |
  * *-------*-----------*----------------------------------------------------------*
- * | 42-43 | dst_as    | Autonomous system number of the destination, either      |
- * |       |           | origin or peer                                           |
- * *-------*-----------*----------------------------------------------------------*
- * | 44    | src_mask  | Source address prefix mask bits                          |
- * *-------*-----------*----------------------------------------------------------*
- * | 45    | dst_mask  | Destination address prefix mask bits                     |
- * *-------*-----------*----------------------------------------------------------*
- * | 46-47 | pad2      | Unused (zero) bytes                                      |
+ * | 41-47 | pad2      | Unused (zero) bytes                                      |
  * *-------*-----------*----------------------------------------------------------*
  */
 
-private[netflow] object V5Flow extends Logger {
+private[netflow] object LegacyFlow {
+
   /**
-   * Parse a v5 Flow
+   * Parse a Version 1, 5, 6 or 7 Flow
    *
+   * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): V5Flow = {
+  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): LegacyFlow = {
     val srcPort = buf.getUnsignedShort(32)
     val dstPort = buf.getUnsignedShort(34)
-    val srcAS = buf.getUnsignedShort(40)
-    val dstAS = buf.getUnsignedShort(42)
+
+    val srcAS = version match { case 5 | 6 | 7 => buf.getUnsignedShort(40) case _ => 0 }
+    val dstAS = version match { case 5 | 6 | 7 => buf.getUnsignedShort(42) case _ => 0 }
 
     val srcAddress = buf.getInetAddress(0, 4)
     val dstAddress = buf.getInetAddress(4, 4)
@@ -152,14 +143,13 @@ private[netflow] object V5Flow extends Logger {
     val proto = buf.getUnsignedByte(38).toInt
     val tos = buf.getUnsignedByte(39).toInt
 
-    val f = V5Flow(sender.getAddress.getHostAddress, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
-    info(f.toString)
-    f
+    LegacyFlow(version, sender, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
   }
 }
 
-private[netflow] case class V5Flow(
-  senderIP: String,
+private[netflow] case class LegacyFlow(
+  versionNumber: Int,
+  sender: InetSocketAddress,
   srcPort: Int,
   dstPort: Int,
   srcAS: Int,
@@ -170,5 +160,7 @@ private[netflow] case class V5Flow(
   pkts: Long,
   bytes: Long,
   proto: Int,
-  tos: Int) extends FlowData
+  tos: Int) extends FlowData {
+  lazy val version = "NetFlow v" + versionNumber
+}
 

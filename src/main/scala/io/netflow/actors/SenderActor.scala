@@ -61,7 +61,12 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       context.stop(self)
     case msg: DatagramPacket =>
       Shutdown.avoid()
-      handleCisco(msg.remoteAddress, msg.data) //getOrElse
+      val fp = handleCisco(msg.remoteAddress, msg.data) //getOrElse
+      if (fp == None) {
+        io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
+        backend.countDatagram(new DateTime, sender, "bad")
+      }
+
     case Flush =>
       Flush.action()
   }
@@ -72,30 +77,27 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
 
   private def handleCisco(sender: InetSocketAddress, buf: ByteBuf): Option[FlowPacket] =
     Try(buf.getUnsignedShort(0)) match {
-      case Failure(e) =>
-        debug("%s", e)
-        io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
-        backend.countDatagram(new DateTime, sender, true)
-        None
-
-      case Success(version) if version == 5 =>
-        Tryo(cisco.V5FlowPacket(sender, buf)) map { flowPacket =>
-          backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
-          save(flowPacket)
-          flowPacket
-        }
-
-      case Success(version) if version == 9 || version == 10 =>
-        Tryo(cisco.V9FlowPacket(sender, buf)) map { flowPacket =>
-          backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
-          save(flowPacket)
-          flowPacket
-        }
-
+      // Not a NetFlow!
+      case Failure(e) => None
       case Success(version) =>
-        info("Unsupported NetFlow version " + version + " received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
-        backend.countDatagram(new DateTime, sender, true)
-        None
+        version match {
+          // Version 1, 5, 6 and 7 are handled by the LegacyFlowParser
+          case 1 | 5 | 6 | 7 =>
+            val flowPacket = cisco.LegacyFlowPacket(version, sender, buf)
+            save(flowPacket)
+            Some(flowPacket)
+
+          // Version 9 and 10 (IPFIX) are handled separately
+          case 9 | 10 =>
+            val flowPacket = cisco.TemplateFlowPacket(version, sender, buf)
+            save(flowPacket)
+            Some(flowPacket)
+
+          // No Version machted
+          case _ =>
+            debug("Unsupported NetFlow version " + version + " received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
+            None
+        }
     }
 
   private def save(flowPacket: FlowPacket): Unit = {
@@ -134,6 +136,24 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
           save(flowPacket, flow)
         }
       case _ =>
+    }
+
+    val recvdFlows = flowPacket.flows.
+      groupBy(_.version)
+
+    val recvdFlowsStr = recvdFlows.
+      map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).
+      mkString(", ")
+
+    // log an elaborate string to loglevel info describing this packet.
+    // Warning: can produce huge amounts of logs if written to disk.
+    info(flowPacket.version + " from " + flowPacket.senderIP + "/" + flowPacket.senderPort +
+      " (" + flowPacket.flows.length + "/" + flowPacket.count + " flows passed, " + recvdFlowsStr + ")")
+
+    // count them to database
+    backend.countDatagram(new DateTime, sender, "good", flowPacket.flows.length)
+    recvdFlows foreach { rcvd =>
+      backend.countDatagram(new DateTime, sender, rcvd._1, rcvd._2.length)
     }
   }
 
