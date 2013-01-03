@@ -6,18 +6,16 @@ import java.net.{ InetAddress, InetSocketAddress }
 
 private[netflow] class FlowException(msg: String) extends Exception(msg)
 
-trait FlowPacket extends Logger {
+trait FlowPacket {
   def count: Int
   def uptime: Long
   def unix_secs: Long
   def sender: InetSocketAddress
-  def senderIP: String
-  def senderPort: Int
   def flows: List[Flow]
   lazy val date = new org.joda.time.DateTime(unix_secs * 1000)
 }
 
-trait Flow extends Logger
+trait Flow
 
 trait FlowData extends Flow {
   def srcPort: Int

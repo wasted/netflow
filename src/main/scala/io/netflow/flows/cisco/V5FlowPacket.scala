@@ -1,10 +1,11 @@
 package io.netflow.flows.cisco
 
 import io.netflow.flows._
+import io.wasted.util.Logger
 
 import io.netty.buffer._
 
-import java.net.InetSocketAddress
+import java.net.{ InetAddress, InetSocketAddress }
 
 /**
  * NetFlow Version 5 Packet
@@ -30,41 +31,51 @@ import java.net.InetSocketAddress
  * *-------*---------------*------------------------------------------------------*
  * | 22-23 | reserved      | Unused (zero) bytes                                  |
  * *-------*---------------*------------------------------------------------------*
- *
- * @param senderIP senderIP's IP Address
- * @param buf Netty ByteBuf containing the UDP Packet
  */
-private[netflow] class V5FlowPacket(val sender: InetSocketAddress, buf: ByteBuf) extends FlowPacket {
-  def senderIP() = sender.getAddress.getHostAddress
-  def senderPort() = sender.getPort
-
+private[netflow] object V5FlowPacket extends Logger {
   private val V5_Header_Size = 24
   private val V5_Flow_Size = 48
-  private val len = buf.readableBytes
 
-  val count = buf.getUnsignedShort(2)
-  val uptime = buf.getUnsignedInt(4)
-  val unix_secs = buf.getUnsignedInt(8)
-  val unix_nsecs = buf.getUnsignedInt(12)
-  val flowSequence = buf.getUnsignedInt(16)
+  /**
+   * Parse a v5 Flow Packet
+   *
+   * @param sender The sender's InetSocketAddress
+   * @param buf Netty ByteBuf containing the UDP Packet
+   */
+  def apply(sender: InetSocketAddress, buf: ByteBuf): V5FlowPacket = {
+    val senderIP = sender.getAddress.getHostAddress
+    val senderPort = sender.getPort
+    val len = buf.readableBytes
+    if (len < V5_Header_Size)
+      throw new IncompleteFlowPacketHeaderException(sender)
 
-  if (len < V5_Header_Size)
-    throw new IncompleteFlowPacketHeaderException(sender)
+    val count = buf.getUnsignedShort(2)
+    if (count <= 0 || len != V5_Header_Size + count * V5_Flow_Size)
+      throw new CorruptFlowPacketException(sender)
 
-  if (count <= 0 || len != V5_Header_Size + count * V5_Flow_Size)
-    throw new CorruptFlowPacketException(sender)
+    val uptime = buf.getUnsignedInt(4)
+    val unix_secs = buf.getUnsignedInt(8)
+    val unix_nsecs = buf.getUnsignedInt(12)
+    val flowSequence = buf.getUnsignedInt(16)
 
-  val flows: List[Flow] = {
     val flows = (0 to count - 1).toList map { i =>
-      new V5Flow(senderIP, buf.copy(V5_Header_Size + (i * V5_Flow_Size), V5_Flow_Size))
+      V5Flow(sender, buf.copy(V5_Header_Size + (i * V5_Flow_Size), V5_Flow_Size))
     }
-    val flowCount = flows.length
-    info("Flows passed " + flowCount + " of " + count)
-    flows
-  }
+    val flowsetCounter = flows.length
 
-  info("NetFlow version 5 received from " + senderIP + "/" + senderPort)
+    info("From " + senderIP + "/" + senderPort + " (" + flowsetCounter + "/" + count + " flows passed)")
+    V5FlowPacket(sender, count, uptime, unix_secs, unix_nsecs, flowSequence, flows)
+  }
 }
+
+private[netflow] case class V5FlowPacket(
+  sender: InetSocketAddress,
+  count: Int,
+  uptime: Long,
+  unix_secs: Long,
+  unix_nsecs: Long,
+  flowSequence: Long,
+  flows: List[Flow]) extends FlowPacket
 
 /**
  * NetFlow Version 5 Flow
@@ -115,28 +126,49 @@ private[netflow] class V5FlowPacket(val sender: InetSocketAddress, buf: ByteBuf)
  * *-------*-----------*----------------------------------------------------------*
  * | 46-47 | pad2      | Unused (zero) bytes                                      |
  * *-------*-----------*----------------------------------------------------------*
- *
- * @param senderIP senderIP's IP Address
- * @param buf Netty ByteBuf containing the UDP Packet
  */
-private[netflow] class V5Flow(val senderIP: String, buf: ByteBuf) extends FlowData {
 
-  val srcPort = buf.getUnsignedShort(32)
-  val dstPort = buf.getUnsignedShort(34)
-  val srcAS = buf.getUnsignedShort(40)
-  val dstAS = buf.getUnsignedShort(42)
+private[netflow] object V5Flow extends Logger {
+  /**
+   * Parse a v5 Flow
+   *
+   * @param sender The sender's InetSocketAddress
+   * @param buf Netty ByteBuf containing the UDP Packet
+   */
+  def apply(sender: InetSocketAddress, buf: ByteBuf): V5Flow = {
+    val srcPort = buf.getUnsignedShort(32)
+    val dstPort = buf.getUnsignedShort(34)
+    val srcAS = buf.getUnsignedShort(40)
+    val dstAS = buf.getUnsignedShort(42)
 
-  val srcAddress = buf.getInetAddress(0, 4)
-  val dstAddress = buf.getInetAddress(4, 4)
+    val srcAddress = buf.getInetAddress(0, 4)
+    val dstAddress = buf.getInetAddress(4, 4)
 
-  val nextHop = buf.getInetAddress(8, 4)
+    val nextHop = buf.getInetAddress(8, 4)
 
-  val pkts = buf.getUnsignedInt(16)
-  val bytes = buf.getUnsignedInt(20)
+    val pkts = buf.getUnsignedInt(16)
+    val bytes = buf.getUnsignedInt(20)
 
-  val proto = buf.getUnsignedByte(38).toInt
-  val tos = buf.getUnsignedByte(39).toInt
+    val proto = buf.getUnsignedByte(38).toInt
+    val tos = buf.getUnsignedByte(39).toInt
 
-  info(toString)
+    val f = V5Flow(sender.getAddress.getHostAddress, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
+    info(f.toString)
+    f
+  }
 }
+
+private[netflow] case class V5Flow(
+  senderIP: String,
+  srcPort: Int,
+  dstPort: Int,
+  srcAS: Int,
+  dstAS: Int,
+  srcAddress: InetAddress,
+  dstAddress: InetAddress,
+  nextHop: InetAddress,
+  pkts: Long,
+  bytes: Long,
+  proto: Int,
+  tos: Int) extends FlowData
 

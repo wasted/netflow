@@ -57,6 +57,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   def receive = {
     case Shutdown =>
       io.netflow.Service.removeActorFor(sender)
+      backend.stop
       context.stop(self)
     case msg: DatagramPacket =>
       Shutdown.avoid()
@@ -78,17 +79,18 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
         None
 
       case Success(version) if version == 5 =>
-        Tryo(new cisco.V5FlowPacket(sender, buf)) map { flowPacket =>
+        Tryo(cisco.V5FlowPacket(sender, buf)) map { flowPacket =>
           backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
           save(flowPacket)
           flowPacket
         }
 
       case Success(version) if version == 9 || version == 10 =>
-        val flowPacket = new cisco.V9FlowPacket(sender, buf)
-        backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
-        save(flowPacket)
-        Some(flowPacket)
+        Tryo(cisco.V9FlowPacket(sender, buf)) map { flowPacket =>
+          backend.countDatagram(new DateTime, sender, false, flowPacket.flows.length)
+          save(flowPacket)
+          flowPacket
+        }
 
       case Success(version) =>
         info("Unsupported NetFlow version " + version + " received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
