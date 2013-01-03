@@ -4,6 +4,8 @@
 
 This project aims to provide an extensible flow collector written in [Scala](http://scala-lang.org), using [Netty](http://netty.io) as IO Framework as well as [Akka](http://akka.io) as Messaging Framework. It is actively being developed by [wasted.io](https://twitter.com/wastedio), so don't forget to follow us on Twitter. :)
 
+### We do allow pull requests, but please follow the [contribution guidelines](https://github.com/wasted/netflow/blob/master/CONTRIBUTING.md).
+
 
 ## Supported flow-types
 
@@ -101,26 +103,20 @@ If you think it's ready for deployment, you can make yourself a .jar-file by run
 
 ## Deployment
 
-Running it with your custom configuration (application.conf), you can start it with something like this:
+There are paramters for the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf) and the [logback config](https://raw.github.com/wasted/netflow/master/src/main/resources/logback.production.xml). To run the application, try something like ths:
 
 ```
-java											\
-	-Xms2048M      								\
-	-Xmx2048M      								\
-	-Xmn1024M      								\
-	-server      								\
+java -server      								\
 	-XX:+AggressiveOpts      					\
 	-Dconfig.file=application.conf				\
-	-Dlogback.configurationFile=io.log.xml		\
+	-Dlogback.configurationFile=logback.xml		\
 	-Dio.netty.epollBugWorkaround=true			\ # only useful on Linux as it is bugged
 	-jar netflow.jar
 ```
 
-You can find a sample.conf at [src/main/resources/sample.conf](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf).
+A more optimized version can be found in the [run shellscript](https://raw.github.com/wasted/netflow/master/run).
 
-A sample logback configuration for production use is at [src/main/resources/logback.production.xml](https://raw.github.com/wasted/netflow/master/src/main/resources/logback.production.xml).
-
-We are open to suggestions for some more optimal startup parameters. ;)
+We are open to suggestions for some more optimal JVM parameters. Please consider opening a pull request if you think you've got an optimization.
 
 
 ## FAQ - Frequently Asked Questions
