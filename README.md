@@ -9,9 +9,12 @@ This project aims to provide an extensible flow collector written in [Scala](htt
 
 ## Supported flow-types
 
-- NetFlow v5 - fully
-- NetFlow v9 ([RFC3954](http://tools.ietf.org/html/rfc3954)) - almost fully
-- NetFlow IPFIX/v10 ([RFC3917](http://tools.ietf.org/html/rfc3917), [RFC3955](http://tools.ietf.org/html/rfc3955)) - untested due to the lack of an exporter
+- NetFlow v1
+- NetFlow v5
+- NetFlow v6
+- NetFlow v7
+- NetFlow v9 ([RFC3954](http://tools.ietf.org/html/rfc3954))
+- NetFlow IPFIX/v10 ([RFC3917](http://tools.ietf.org/html/rfc3917), [RFC3955](http://tools.ietf.org/html/rfc3955))
 
 
 ## Supported storage backends
