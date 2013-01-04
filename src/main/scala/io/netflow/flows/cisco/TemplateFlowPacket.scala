@@ -107,6 +107,7 @@ private[netflow] object TemplateFlowPacket extends Logger {
                   flows :+= TemplateFlow(flowversion, sender, buffer, tmpl)
                   flowsetCounter += 1
                 } catch {
+                  case e: IllegalFlowDirectionException => warn(e.toString)
                   case e: Throwable => warn(e.toString, e); e.printStackTrace
                 }
                 recordOffset += tmpl.length
@@ -147,14 +148,17 @@ private[netflow] object TemplateFlow {
       throw new CorruptFlowTemplateException(sender, template.id)
     import scala.language.postfixOps
 
-    def getInt(field1: Int): Option[Long] =
-      if (template.hasField(field1)) template.typeLen(field1) match {
-        case 2 => Some(buf.getUnsignedShort(template.typeOffset(field1)).toLong)
-        case 4 => Some(buf.getUnsignedInt(template.typeOffset(field1)).toLong)
-        case 8 => Some(buf.getLong(template.typeOffset(field1)))
-        case _ => None
-      }
-      else None
+    def getInt(field1: Int): Option[Long] = if (!template.hasField(field1)) None
+    else template.typeOffset(field1) match {
+      case -1 => None
+      case offset: Int =>
+        template.typeLen(field1) match {
+          case 2 => Some(buf.getUnsignedShort(offset).toLong)
+          case 4 => Some(buf.getUnsignedInt(offset).toLong)
+          case 8 => Some(scala.math.BigInt((0 to 7).toArray.map(b => buf.getByte(offset + b))).toLong)
+          case _ => None
+        }
+    }
 
     def getIntOr(field1: Int, field2: Int): Long = getInt(field1) orElse getInt(field2) getOrElse 0L
 
@@ -188,13 +192,25 @@ private[netflow] object TemplateFlow {
     }
     val nextHop = getAddressOr(IPV4_NEXT_HOP, IPV6_NEXT_HOP)
 
-    val pkts = getIntOr(InPKTS_32, PKTS_64)
-    val bytes = getIntOr(InBYTES_32, BYTES_64)
-
+    val pkts = direction match {
+      case Some(0) => getIntOr(InPKTS, OutPKTS)
+      case Some(1) => getIntOr(OutPKTS, InPKTS)
+      case _ => getIntOr(InPKTS, OutPKTS)
+    }
+    val bytes = direction match {
+      case Some(0) => getIntOr(InBYTES, OutBYTES)
+      case Some(1) => getIntOr(OutBYTES, InBYTES)
+      case _ => getIntOr(InBYTES, OutBYTES)
+    }
     val proto = getInt(PROT) getOrElse 0L toInt
     val tos = getInt(SRC_TOS) getOrElse 0L toInt
 
-    TemplateFlow(version, sender, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
+    val flow = TemplateFlow(version, sender, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
+    direction match {
+      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x, flow)
+      case _ =>
+    }
+    flow
   }
 
 }

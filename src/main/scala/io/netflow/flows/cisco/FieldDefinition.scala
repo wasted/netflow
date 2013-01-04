@@ -1,8 +1,8 @@
 package io.netflow.flows.cisco
 
 object FieldDefinition {
-  val InBYTES_32 = 1
-  val InPKTS_32 = 2
+  val InBYTES = 1
+  val InPKTS = 2
   val FLOWS = 3
   val PROT = 4
   val SRC_TOS = 5
@@ -23,8 +23,8 @@ object FieldDefinition {
   val IPM_DOCTETS = 20
   val LAST_SWITCHED = 21
   val FIRST_SWITCHED = 22
-  val BYTES_64 = 23
-  val PKTS_64 = 24
+  val OutBYTES = 23
+  val OutPKTS = 24
   val MIN_PKT_LEN = 25
   val MAX_PKT_LEN = 26
   val IPV6_SRC_ADDR = 27

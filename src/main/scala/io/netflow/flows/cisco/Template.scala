@@ -43,17 +43,6 @@ private[netflow] object Template {
 
   def apply(sender: InetSocketAddress, id: Int, fields: HashMap[String, Int]): Option[Template] =
     Tryo(Template(id, sender, fields))
-
-  import FieldDefinition._
-  def defaultTypeLengths(typeName: Int): Int = typeName match {
-    case IPV6_SRC_ADDR | IPV6_DST_ADDR | IPV6_NEXT_HOP => 16
-    case IPV4_SRC_ADDR | IPV4_DST_ADDR | IPV4_NEXT_HOP => 4
-    case LAST_SWITCHED | FIRST_SWITCHED => 4
-    case L4_SRC_PORT | L4_DST_PORT => 2
-    case SRC_TOS | PROT => 1
-    case InBYTES_32 | InPKTS_32 => 8
-    case _ => 0
-  }
 }
 
 private[netflow] case class Template(id: Int, sender: InetSocketAddress, map: HashMap[String, Int]) extends Flow {
@@ -73,7 +62,7 @@ private[netflow] case class Template(id: Int, sender: InetSocketAddress, map: Ha
   def isIPFIX = (flowsetId == 2 || flowsetId == 3)
 
   def typeOffset(typeName: Int): Int = map.get("offset_" + typeName) getOrElse -1
-  def typeLen(typeName: Int): Int = map.get("length_" + typeName) getOrElse Template.defaultTypeLengths(typeName)
+  def typeLen(typeName: Int): Int = map.get("length_" + typeName) getOrElse 0
   def key() = (sender, id)
   def hasField(typeName: Int): Boolean = map.contains("offset_" + typeName)
 

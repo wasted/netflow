@@ -13,4 +13,6 @@
   <logger name="Inet4Prefix" level="WARN" />
   <logger name="Inet6Prefix" level="WARN" />
 
+  <logger name="i.n.channel.socket.nio.NioEventLoop" level="WARN" /> <!-- hide nio selector bug messages -->
+
 </configuration>
