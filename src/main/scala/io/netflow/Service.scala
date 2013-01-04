@@ -19,15 +19,18 @@ private[netflow] object Service extends Logger {
   private var senderActors = HashMap[InetSocketAddress, ActorRef]()
   def findActorFor(sender: InetSocketAddress): Option[ActorRef] = senderActors.get(sender) match {
     case Some(actor) => Some(actor)
-    case None if (backend.acceptFrom(sender)) =>
-      val actor = Tryo(system.actorOf(Props(new SenderActor(sender, Storage.start().get)), sender.toString.replaceAll("/", ""))) match {
-        case Some(actor) =>
-          senderActors ++= Map(sender -> actor)
-          actor
-        case None => system.actorFor("akka://netflow/user/" + sender.toString.replaceAll(",", ""))
+    case None =>
+      backend.acceptFrom(sender) match {
+        case Some(sender) =>
+          val actor = Tryo(system.actorOf(Props(new SenderActor(sender, Storage.start().get)), sender.toString.replaceAll("/", ""))) match {
+            case Some(actor) =>
+              senderActors ++= Map(sender -> actor)
+              actor
+            case None => system.actorFor("akka://netflow/user/" + sender.toString.replaceAll(",", ""))
+          }
+          Some(actor)
+        case _ => None
       }
-      Some(actor)
-    case _ => None
   }
 
   def removeActorFor(sender: InetSocketAddress) {

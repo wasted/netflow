@@ -48,6 +48,8 @@ If you do not know which IP your router uses to export NetFlows, just launch [ne
 
 If that does not work, use [tcpdump](http://www.tcpdump.org/tcpdump_man.html) to find out the IP and Port. If you are not familiar with tcpdump yet (you really should be!), check out our Troubleshooting Section below.
 
+As a last resort, we implemented the possibility to use **Port 0** in the Database as a **wildcard** which will match any Port.
+
 #### Our suggestion
 
 If your router supports it, set the exporter's source IP and Port to something static.
@@ -65,8 +67,11 @@ redis 127.0.0.1:6379>
 
 Now create a Redis Set **senders** and populate it with **10.0.0.1/1337** or whatever your sender might be. Feel free to add multiple!
 
+Remember that **Port 0** will disable Port-checking for that particular host!
+
 ```
 sadd senders 10.0.0.1/1337
+sadd senders 10.0.0.2/0
 ```
 
 Now add the networks you would like to monitor from that sender. **Of course we also support IPv6!**
@@ -74,6 +79,9 @@ Now add the networks you would like to monitor from that sender. **Of course we 
 ```
 sadd sender:10.0.0.1/1337 192.168.0.0/24
 sadd sender:10.0.0.1/1337 2001:db8::/32
+
+sadd sender:10.0.0.2/0 192.168.0.0/24
+sadd sender:10.0.0.2/0 2001:db8::/32
 ```
 
 If you are interested in Redis, check out the [commands](http://redis.io/commands) and [data types](http://redis.io/topics/data-types).

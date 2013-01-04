@@ -61,7 +61,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       context.stop(self)
     case msg: DatagramPacket =>
       Shutdown.avoid()
-      val fp = handleCisco(msg.remoteAddress, msg.data) //getOrElse
+      val fp = handleCisco(sender, msg.data) //getOrElse
       if (fp == None) {
         io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
         backend.countDatagram(new DateTime, sender, "bad")
@@ -141,14 +141,12 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
     val recvdFlows = flowPacket.flows.
       groupBy(_.version)
 
-    val recvdFlowsStr = recvdFlows.
-      map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).
-      mkString(", ")
+    val recvdFlowsStr = List(flowPacket.flows.length + "/" + flowPacket.count + " flows passed") ++
+      recvdFlows.map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length) mkString (", ")
 
     // log an elaborate string to loglevel info describing this packet.
     // Warning: can produce huge amounts of logs if written to disk.
-    info(flowPacket.version + " from " + flowPacket.senderIP + "/" + flowPacket.senderPort +
-      " (" + flowPacket.flows.length + "/" + flowPacket.count + " flows passed, " + recvdFlowsStr + ")")
+    info(flowPacket.version + " from " + flowPacket.senderIP + "/" + flowPacket.senderPort + " (" + recvdFlowsStr + ")")
 
     // count them to database
     backend.countDatagram(new DateTime, sender, flowPacket.version, flowPacket.flows.length)

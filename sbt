@@ -26,7 +26,7 @@ test -f ~/.sbtconfig && . ~/.sbtconfig
 java -ea -server $SBT_OPTS $JAVA_OPTS			\
 	-XX:+AggressiveOpts             		\
 	-XX:+OptimizeStringConcat			\
-	-XX:+UseParallelGC                		\
+	-XX:+UseConcMarkSweepGC               		\
 	-XX:+CMSParallelRemarkEnabled   		\
 	-XX:+CMSClassUnloadingEnabled   		\
 	-XX:+CMSIncrementalMode         		\

@@ -29,8 +29,10 @@ private[netflow] trait Storage extends Logger {
   def save(template: cisco.Template): Unit
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]
 
-  // Validate the sender
-  def acceptFrom(sender: InetSocketAddress): Boolean
+  /**
+   * Validate the sender and return another sender-Address if needed.
+   */
+  def acceptFrom(sender: InetSocketAddress): Option[InetSocketAddress]
 
   /**
    * Count DataGram from this sender

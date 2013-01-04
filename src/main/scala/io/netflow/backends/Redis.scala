@@ -45,9 +45,11 @@ private[netflow] class Redis(host: String, port: Int) extends Storage {
     redisClient.hset("stats:" + senderAddr, "last", date.getMillis.toString)
   }
 
-  def acceptFrom(sender: InetSocketAddress): Boolean = {
+  def acceptFrom(sender: InetSocketAddress): Option[InetSocketAddress] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-    redisClient.sismember("senders", ip + "/" + port).data == 1
+    if (redisClient.sismember("senders", ip + "/" + port).data == 1) return Some(sender)
+    if (redisClient.sismember("senders", ip + "/0").data == 1) return Some(new InetSocketAddress(sender.getAddress, 0))
+    None
   }
 
   def getThruputPrefixes(sender: InetSocketAddress): List[InetPrefix] = {
