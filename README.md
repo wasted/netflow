@@ -148,7 +148,7 @@ Since we did not want to implement two parsers for handling **IPv4:Port** and **
 
 #### Q3: I just started the collector with loglevel Debug, it shows 0/24 flows passed, why?
 
-NetFlow consists of two packet types, FlowSet Templates and DataFlows. Templates are defined on a per-router/exporter basis so each has their own. In order to work through DataFlows, you need to have received the Template first to make sense of the data. The issue is usually that your exporter might need a few minutes (10-60) to send you the according Template. If you use IPv4 and IPv6 (NetFlow v9 or IPFIX), the router is likely to send you templates for both protocols. If you want to know more about disecting NetFlow v9, be sure to check out [RFC3954](http://tools.ietf.org/html/rfc3954).
+NetFlow v9 and v10 (IPFIX) consist of two packet types, FlowSet Templates and DataFlows. Templates are defined on a per-router/exporter basis so each has their own. In order to work through DataFlows, you need to have received the Template first to make sense of the data. The issue is usually that your exporter might need a few minutes (10-60) to send you the according Template. If you use IPv4 and IPv6 (NetFlow v9 or IPFIX), the router is likely to send you templates for both protocols. If you want to know more about disecting NetFlow v9, be sure to check out [RFC3954](http://tools.ietf.org/html/rfc3954).
 
 #### Q4: Which NetFlow exporter do you recommend?
 
