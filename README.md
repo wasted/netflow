@@ -131,6 +131,16 @@ We are open to suggestions for some more optimal JVM parameters. Please consider
 
 Since NetFlow uses UDP, there is no way to verify the sender through ACK like there is with TCP. (Meaning if the connection is established, it's less likely to be a spoofed packet). In any case, having to guess the exporters source IP/Port AND the collectors correct IP/Port, makes it a little bit harder to inject malicious flow-packets into your collector. If your collector is on-site and you are able to VLAN/firewall it accordingly, then i suggest to everybody to do so!
 
+As mentioned in the guide above, there is **Port 0** which can be used as a wildcard. Simply using:
+
+```
+sadd senders 10.0.0.2/0
+
+sadd sender:10.0.0.2/0 192.168.0.0/24
+sadd sender:10.0.0.2/0 2001:db8::/32
+```
+
+However, this comes with the downside that your NetFlow sender/exporter can only have one exporting process. While this is not a problem with Juniper, Cisco or Routers in general. **This is important** if you run a NetFlow Aggregator/Collector-Redistributor.
 
 #### Q2: Why did you choose a slash(/)-notation to separate IPs from Ports inside the Key-Value-Store?
 
