@@ -140,7 +140,7 @@ sadd sender:10.0.0.2/0 192.168.0.0/24
 sadd sender:10.0.0.2/0 2001:db8::/32
 ```
 
-However, this comes with the downside that your NetFlow sender/exporter can only have one exporting process. While this is not a problem with Juniper, Cisco or Routers in general. **This is important** if you run a NetFlow Aggregator/Collector-Redistributor.
+However, this comes with the downside that your NetFlow sender/exporter can only have one exporting process. While this is not a problem with Juniper, Cisco or Routers in general, **this is inmportant** if you run a NetFlow Aggregator/Collector-Redistributor.
 
 #### Q2: Why did you choose a slash(/)-notation to separate IPs from Ports inside the Key-Value-Store?
 
@@ -152,7 +152,7 @@ NetFlow consists of two packet types, FlowSet Templates and DataFlows. Templates
 
 #### Q4: Which NetFlow exporter do you recommend?
 
-Since we are heavy BSD fanatics, we encourage everyone to use [FreeBSD ng_netflow](http://www.freebsd.org/cgi/man.cgi?query=ng_netflow&sektion=4&manpath=FreeBSD-CURRENT). For OpenBSD there is [pflow](http://www.openbsd.org/cgi-bin/man.cgi?query=pflow&apropos=0&sektion=4&manpath=OpenBSD+Current&arch=i386&format=html) (which is a little bit broken in regards to exporting AS-numbers which are in the kernel through OpenBGPd). We **advice against a pcap** based exporter since it tends to drop long-living connections (like WebSockets) which exceed ~10 minutes in time.
+We encourage everyone to use [FreeBSD ng_netflow](http://www.freebsd.org/cgi/man.cgi?query=ng_netflow&sektion=4&manpath=FreeBSD-CURRENT) or [OpenBSD pflow](http://www.openbsd.org/cgi-bin/man.cgi?query=pflow&apropos=0&sektion=4&manpath=OpenBSD+Current&arch=i386&format=html) (which is a little bit broken in regards to exporting AS-numbers which are in the kernel through OpenBGPd). We **advice against all pcap** based exporters and collectors since they tend to drop long-living connections (like WebSockets) which exceed ~10 minutes in time.
 
 #### Q5: I don't have a JunOS, Cisco IOS, FreeBSD or OpenBSD based router, what can i do?
 
