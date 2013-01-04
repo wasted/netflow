@@ -5,6 +5,7 @@ import io.wasted.util.{ Logger, Tryo }
 
 import io.netty.buffer._
 
+import scala.util.{ Try, Success, Failure }
 import java.net.{ InetAddress, InetSocketAddress }
 
 /**
@@ -144,25 +145,35 @@ private[netflow] object TemplateFlow {
   def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf, template: Template): TemplateFlow = {
     if (buf.array.length < template.typeOffset(-1))
       throw new CorruptFlowTemplateException(sender, template.id)
+    import scala.language.postfixOps
 
-    def getAddress(field1: Int, field2: Int) = {
-      if (template.hasField(field1))
-        buf.getInetAddress(template, field1)
-      else buf.getInetAddress(template, field2)
-    }
+    def getInt(field1: Int): Option[Long] =
+      if (template.hasField(field1)) template.typeLen(field1) match {
+        case 2 => Some(buf.getUnsignedShort(template.typeOffset(field1)).toLong)
+        case 4 => Some(buf.getUnsignedInt(template.typeOffset(field1)).toLong)
+        case 8 => Some(buf.getLong(template.typeOffset(field1)))
+        case _ => None
+      }
+      else None
+
+    def getIntOr(field1: Int, field2: Int): Long = getInt(field1) orElse getInt(field2) getOrElse 0L
+
+    def getAddress(field1: Int): Option[InetAddress] =
+      if (template.hasField(field1)) Tryo(buf.getInetAddress(template, field1)) else None
+
+    def getAddressOr(field1: Int, field2: Int) =
+      getAddress(field1) orElse getAddress(field2) getOrElse InetAddress.getByName("0.0.0.0")
 
     val srcPort = buf.getUnsignedShort(template.typeOffset(L4_SRC_PORT))
     val dstPort = buf.getUnsignedShort(template.typeOffset(L4_DST_PORT))
-    val srcAS = if (!template.hasSrcAS) 0 else
-      Tryo(buf.getUnsignedShort(template.typeOffset(SRC_AS))) getOrElse 0
-    val dstAS = if (!template.hasDstAS) 0 else
-      Tryo(buf.getUnsignedShort(template.typeOffset(DST_AS))) getOrElse 0
+    val srcAS = getInt(SRC_AS) getOrElse 0L toInt
+    val dstAS = getInt(DST_AS) getOrElse 0L toInt
 
     val direction: Option[Int] = if (!template.hasDirection) None else
       Some(buf.getUnsignedByte(template.typeOffset(DIRECTION)).toInt)
 
-    val getSrcs = getAddress(IPV4_SRC_ADDR, IPV6_SRC_ADDR)
-    val getDsts = getAddress(IPV4_DST_ADDR, IPV6_DST_ADDR)
+    val getSrcs = getAddressOr(IPV4_SRC_ADDR, IPV6_SRC_ADDR)
+    val getDsts = getAddressOr(IPV4_DST_ADDR, IPV6_DST_ADDR)
 
     val srcAddress = direction match {
       case Some(0) => getSrcs
@@ -175,13 +186,13 @@ private[netflow] object TemplateFlow {
       case Some(1) => getSrcs
       case _ => getDsts
     }
-    val nextHop = getAddress(IPV4_NEXT_HOP, IPV6_NEXT_HOP)
+    val nextHop = getAddressOr(IPV4_NEXT_HOP, IPV6_NEXT_HOP)
 
-    val pkts = buf.getUnsignedInt(template.typeOffset(InPKTS_32))
-    val bytes = buf.getUnsignedInt(template.typeOffset(InBYTES_32))
+    val pkts = getIntOr(InPKTS_32, PKTS_64)
+    val bytes = getIntOr(InBYTES_32, BYTES_64)
 
-    val proto = buf.getUnsignedByte(template.typeOffset(PROT)).toInt
-    val tos = buf.getUnsignedByte(template.typeOffset(SRC_TOS)).toInt
+    val proto = getInt(PROT) getOrElse 0L toInt
+    val tos = getInt(SRC_TOS) getOrElse 0L toInt
 
     TemplateFlow(version, sender, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
   }
