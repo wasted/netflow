@@ -19,14 +19,9 @@ This project aims to provide an extensible flow collector written in [Scala](htt
 - Currently only the [Redis](http://redis.io) Key-Value-Store is supported
 
 
-## Future roadmap / what's missing
+## Roadmap and Bugs
 
-- NetFlow v1
-- NetFlow v6
-- NetFlow v7
-- NetFlow v9 and v10/IPFIX Sampling and Option flows
-- SFlow support
-- Cassandra storage support
+Can both be found in the Issues section up top.
 
 
 ## What we won't implement
