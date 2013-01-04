@@ -11,7 +11,7 @@ if [ "$1" == "-gc" ] || [ "$2" == "-gc" ]; then
   -XX:+PrintGCTimeStamps"
 fi
 
-java -ea $JAVA_OPTS                   \
+java -ea -server $JAVA_OPTS           \
   -XX:+AggressiveOpts                 \
   -XX:+OptimizeStringConcat           \
   -XX:+UseParallelGC                  \
@@ -19,6 +19,5 @@ java -ea $JAVA_OPTS                   \
   -Dio.netty.epollBugWorkaround=true  \
   -Xms128M                            \
   -Xmx1G                              \
-  -server                             \
   -jar target/netflow-$( git describe --always ).jar
 

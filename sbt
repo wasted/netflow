@@ -23,21 +23,15 @@ fi
 
 test -f ~/.sbtconfig && . ~/.sbtconfig
 
-java -ea \
-	$SBT_OPTS					\
-	$JAVA_OPTS					\
-	-XX:+HeapDumpOnOutOfMemoryError			\
-	-XX:HeapDumpPath=/var/lib/cassandra/netflow	\
+java -ea -server $SBT_OPTS $JAVA_OPTS			\
 	-XX:+AggressiveOpts             		\
 	-XX:+OptimizeStringConcat			\
-	-XX:+UseParNewGC                		\
-	-XX:+UseConcMarkSweepGC         		\
+	-XX:+UseParallelGC                		\
 	-XX:+CMSParallelRemarkEnabled   		\
 	-XX:+CMSClassUnloadingEnabled   		\
 	-XX:+CMSIncrementalMode         		\
 	-Dio.netty.epollBugWorkaround=true		\
-	-Xms64M						\
+	-Xms128M					\
 	-Xmx512M					\
-	-server						\
 	-jar $sbtjar "$@"
 
