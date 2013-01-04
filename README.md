@@ -19,17 +19,17 @@ This project aims to provide an extensible flow collector written in [Scala](htt
 
 ## Supported storage backends
 
-- Currently only the [Redis](http://redis.io) Key-Value-Store is supported
-
-
-## Roadmap and Bugs
-
-Can both be found in the Issues section up top.
+Currently only the [Redis](http://redis.io) Key-Value-Store is supported, but since our [backends/Redis.scala](https://github.com/wasted/netflow/blob/master/src/main/scala/io/netflow/backends/Redis.scala) only has ~100 lines, it should not be a problem to dock onto other databases.
 
 
 ## What we won't implement
 
 - NetFlow v8 - totally weird format, would take too much time. [Check yourself…](http://netflow.caligare.com/netflow_v8.htm)
+
+
+## Roadmap and Bugs
+
+Can both be found in the Issues section up top.
 
 
 ## Compiling
