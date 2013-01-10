@@ -55,7 +55,7 @@ private[netflow] object LegacyFlowPacket {
     val uptime = buf.getInteger(4, 4).get
     val unix_secs = buf.getInteger(8, 4).get
 
-    val flows = Vector(0 to count - 1: _*) map { i =>
+    val flows = Vector.range(0, count-1) map { i =>
       LegacyFlow(version, sender, buf.slice(headerSize + (i * flowSize), flowSize))
     }
 
