@@ -147,8 +147,6 @@ private[netflow] object TemplateFlow {
    * @param buf Netty ByteBuf containing the UDP Packet
    */
   def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf, template: Template): IPFlowData = {
-    if (buf.array.length < template.length)
-      throw new CorruptFlowTemplateException(sender, template.id)
     import scala.language.postfixOps
 
     val srcPort = buf.getInteger(template, L4_SRC_PORT).get.toInt

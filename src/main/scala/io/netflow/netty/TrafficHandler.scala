@@ -24,9 +24,8 @@ private[netflow] object TrafficHandler extends ChannelInboundMessageHandlerAdapt
 
     // The first two bytes contain the NetFlow version
     if (msg.data.readableBytes < 2) return unsupportedPacket(sender)
-
     Service.findActorFor(sender) match {
-      case Some(actor) => actor ! msg
+      case Some(actor) => actor ! msg.data.copy()
       case None =>
         warn("Unauthorized NetFlow received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
     }

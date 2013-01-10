@@ -44,18 +44,15 @@ private[netflow] object LegacyFlowPacket {
     if (!versionMap.contains(version)) throw new InvalidFlowVersionException(sender, version)
 
     val (headerSize, flowSize) = versionMap(version)
-    val len = buf.readableBytes
-    if (len < headerSize)
-      throw new IncompleteFlowPacketHeaderException(sender)
 
     val count = buf.getInteger(2, 2).get.toInt
-    if (count <= 0 || len != headerSize + count * flowSize)
+    if (count <= 0 || buf.readableBytes < headerSize + count * flowSize)
       throw new CorruptFlowPacketException(sender)
 
     val uptime = buf.getInteger(4, 4).get
     val unix_secs = buf.getInteger(8, 4).get
 
-    val flows = Vector.range(0, count - 1) map { i =>
+    val flows = Vector.range(0, count) map { i =>
       LegacyFlow(version, sender, buf.slice(headerSize + (i * flowSize), flowSize))
     }
 
@@ -124,7 +121,7 @@ private[netflow] object LegacyFlow {
    *
    * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
-   * @param buf Netty ByteBuf containing the UDP Packet
+   * @param buf Netty ByteBuf Slice containing the UDP Packet
    */
   def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IPFlowData = {
     val srcPort = buf.getInteger(32, 2).get.toInt

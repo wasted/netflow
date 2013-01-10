@@ -19,6 +19,10 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
   protected var thruputPrefixes: List[InetPrefix] = List()
   private var senderPrefixes: List[InetPrefix] = List()
+
+  // this is a temporary cache which will be flushed
+  private var templateCache: Map[Int, cisco.Template] = Map()
+
   private val accountPerIP = false
   private val accountPerIPProto = false
   private var cancellable = Shutdown.schedule()
@@ -44,6 +48,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       if (repoll) {
         thruputPrefixes = backend.getThruputPrefixes(sender)
         senderPrefixes = backend.getPrefixes(sender)
+        templateCache = Map()
         lastPoll = new DateTime
       }
       schedule()
@@ -59,15 +64,16 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       io.netflow.Service.removeActorFor(sender)
       backend.stop
       context.stop(self)
-    case msg: DatagramPacket =>
+    case data: ByteBuf =>
       Shutdown.avoid()
-      handleSFlow(sender, msg.data) orElse handleCisco(sender, msg.data) match {
+      handleSFlow(data) orElse handleCisco(data) match {
         case Some(flowPacket) => save(flowPacket)
         case None =>
           debug("Unsupported FlowPacket received")
           io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
           backend.countDatagram(new DateTime, sender, "bad")
       }
+      data.free
     case Flush =>
       Flush.action()
   }
@@ -76,7 +82,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
 
-  private def handleSFlow(sender: InetSocketAddress, buf: ByteBuf): Option[FlowPacket] = {
+  private def handleSFlow(buf: ByteBuf): Option[FlowPacket] = {
     if (buf.readableBytes < 28) return None
     Tryo(buf.getLong(0)) match {
       case Some(3) => None // sFlow 3
@@ -86,7 +92,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
     }
   }
 
-  private def handleCisco(sender: InetSocketAddress, buf: ByteBuf): Option[FlowPacket] =
+  private def handleCisco(buf: ByteBuf): Option[FlowPacket] =
     Tryo(buf.getUnsignedShort(0)) match {
       case Some(v) if v == 1 || v == 5 || v == 6 || v == 7 => Tryo(cisco.LegacyFlowPacket(sender, buf))
       case Some(v) if v == 9 || v == 10 => Tryo(cisco.TemplateFlowPacket(sender, buf))
@@ -96,6 +102,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   private def save(flowPacket: FlowPacket): Unit = {
     flowPacket.flows foreach {
       case tmpl: cisco.Template =>
+        templateCache ++= Map(tmpl.id -> tmpl)
         backend.save(tmpl)
 
       /* Handle IPFlowData */
