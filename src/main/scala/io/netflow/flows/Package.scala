@@ -35,9 +35,9 @@ package object flows {
       getInteger(template, field1) orElse getInteger(template, field2) getOrElse 0L
 
     def getInteger(offset: Int, length: Int): Option[Long] = length match {
-      case 2 => Some(buf.getUnsignedShort(offset).toLong)
-      case 4 => Some(buf.getUnsignedInt(offset).toLong)
-      case 8 => Some(scala.math.BigInt((0 to 7).toArray.map(b => buf.getByte(offset + b))).toLong)
+      case 2 => Tryo(buf.getUnsignedShort(offset).toLong)
+      case 4 => Tryo(buf.getUnsignedInt(offset).toLong)
+      case 8 => Tryo(scala.math.BigInt((0 to 7).toArray.map(b => buf.getByte(offset + b))).toLong)
       case _ => None
     }
   }
