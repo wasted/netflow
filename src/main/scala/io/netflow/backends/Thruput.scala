@@ -20,7 +20,7 @@ case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
   val auth = UUID.fromString(authStr)
   val sign = UUID.fromString(signStr)
   val url = new java.net.URL(urlStr)
-  def msg(fd: FlowData, ip: InetAddress, toUser: List[String]): String = {
+  def msg(fd: JsonFlowData, ip: InetAddress, toUser: List[String]): String = {
     val user = toUser.length match {
       case 0 => ""
       case _ => """, "to": ["""" + toUser.mkString("""", """") + """"]"""
@@ -34,7 +34,7 @@ private[netflow] trait Thruput {
 
   protected val thruputHttpClient = HttpClient(2)
 
-  protected val thruput = (sender: InetSocketAddress, prefix: InetPrefix, addr: InetAddress, fd: FlowData) =>
+  protected val thruput = (sender: InetSocketAddress, prefix: InetPrefix, addr: InetAddress, fd: JsonFlowData) =>
     backend.getThruputRecipients(sender, prefix).groupBy(_.platform) foreach { platformRcpts =>
       val rcpt = platformRcpts._1
       Tryo(thruputHttpClient.thruput(rcpt.url, rcpt.auth, rcpt.sign, rcpt.msg(fd, addr, platformRcpts._2.flatMap(_.toUser))))

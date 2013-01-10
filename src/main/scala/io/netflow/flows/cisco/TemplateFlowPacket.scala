@@ -4,9 +4,9 @@ import io.netflow.flows._
 import io.wasted.util.{ Logger, Tryo }
 
 import io.netty.buffer._
-
-import scala.util.{ Try, Success, Failure }
+import org.joda.time.DateTime
 import java.net.{ InetAddress, InetSocketAddress }
+import scala.util.{ Try, Success, Failure }
 
 /**
  * NetFlow Version 9 or 10 (IPFIX) Packet - FlowSet DataSet
@@ -35,28 +35,30 @@ private[netflow] object TemplateFlowPacket extends Logger {
   /**
    * Parse a v9 or v10 (IPFIX) Flow Packet
    *
-   * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): TemplateFlowPacket = {
+  def apply(sender: InetSocketAddress, buf: ByteBuf): TemplateFlowPacket = {
+    val version = buf.getInteger(0, 2).get.toInt
+    if (version != 9 && version != 10) throw new InvalidFlowVersionException(sender, version)
+
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
     if (buf.readableBytes < V9_Header_Size)
       throw new IncompleteFlowPacketHeaderException(sender)
 
-    val count = buf.getUnsignedShort(2).toInt
-    val uptime = buf.getUnsignedInt(4)
-    val unix_secs = buf.getUnsignedInt(8)
-    val packageSeq = buf.getUnsignedInt(12)
-    val sourceId = buf.getUnsignedInt(16)
+    val count = buf.getInteger(2, 2).get.toInt
+    val uptime = buf.getInteger(4, 4).get
+    val unix_secs = buf.getInteger(8, 4).get
+    val packageSeq = buf.getInteger(12, 4).get
+    val sourceId = buf.getInteger(16, 4).get
 
-    var flows = List[Flow]()
+    var flows = Vector[Flow]()
     var flowsetCounter = 0
     var packetOffset = V9_Header_Size
     while (flowsetCounter < count && packetOffset < buf.readableBytes) {
-      val flowsetId = buf.getUnsignedShort(packetOffset).toInt
-      val flowsetLength = buf.getUnsignedShort(packetOffset + 2).toInt
+      val flowsetId = buf.getInteger(packetOffset, 2).get.toInt
+      val flowsetLength = buf.getInteger(packetOffset + 2, 2).get.toInt
       if (flowsetLength == 0) throw new IllegalFlowSetLengthException(sender)
       flowsetId match {
         case 0 | 2 => // template flowset - 0 NetFlow v9, 2 IPFIX
@@ -67,7 +69,7 @@ private[netflow] object TemplateFlowPacket extends Logger {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
             val templateSize = fieldCount * 4 + 4
             try {
-              val buffer = buf.copy(templateOffset, templateSize)
+              val buffer = buf.slice(templateOffset, templateSize)
               Template(sender, buffer, flowsetId).map(flows :+= _)
               flowsetCounter += 1
             } catch {
@@ -82,11 +84,11 @@ private[netflow] object TemplateFlowPacket extends Logger {
           debug(flowtype + " OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           var templateOffset = packetOffset + 4
           do {
-            val scopeLen = buf.getUnsignedShort(templateOffset + 2)
-            val optionLen = buf.getUnsignedShort(templateOffset + 4)
+            val scopeLen = buf.getInteger(templateOffset + 2, 2).get.toInt
+            val optionLen = buf.getInteger(templateOffset + 4, 2).get.toInt
             val templateSize = scopeLen + optionLen + 6
             try {
-              val buffer = buf.copy(templateOffset, templateSize)
+              val buffer = buf.slice(templateOffset, templateSize)
               Template(sender, buffer, flowsetId).map(flows :+= _)
               flowsetCounter += 1
             } catch {
@@ -103,7 +105,7 @@ private[netflow] object TemplateFlowPacket extends Logger {
               var recordOffset = packetOffset + 4
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
-                  val buffer = buf.copy(recordOffset, tmpl.length)
+                  val buffer = buf.slice(recordOffset, tmpl.length)
                   flows :+= TemplateFlow(flowversion, sender, buffer, tmpl)
                   flowsetCounter += 1
                 } catch {
@@ -118,7 +120,8 @@ private[netflow] object TemplateFlowPacket extends Logger {
       }
       packetOffset += flowsetLength.toInt
     }
-    TemplateFlowPacket(version, sender, count, uptime, unix_secs, flows)
+    val date = new org.joda.time.DateTime(unix_secs * 1000)
+    TemplateFlowPacket(version, sender, count, uptime, date, flows)
   }
 
 }
@@ -128,8 +131,8 @@ private[netflow] case class TemplateFlowPacket(
   sender: InetSocketAddress,
   count: Int,
   uptime: Long,
-  unix_secs: Long,
-  flows: List[Flow]) extends FlowPacket {
+  date: DateTime,
+  flows: Vector[Flow]) extends FlowPacket {
   lazy val version = "netflow:" + versionNumber + ":packet"
 }
 
@@ -143,41 +146,25 @@ private[netflow] object TemplateFlow {
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf, template: Template): TemplateFlow = {
-    if (buf.array.length < template.typeOffset(-1))
+  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf, template: Template): IPFlowData = {
+    if (buf.array.length < template.length)
       throw new CorruptFlowTemplateException(sender, template.id)
     import scala.language.postfixOps
 
-    def getInt(field1: Int): Option[Long] = if (!template.hasField(field1)) None
-    else template.typeOffset(field1) match {
-      case -1 => None
-      case offset: Int =>
-        template.typeLen(field1) match {
-          case 2 => Some(buf.getUnsignedShort(offset).toLong)
-          case 4 => Some(buf.getUnsignedInt(offset).toLong)
-          case 8 => Some(scala.math.BigInt((0 to 7).toArray.map(b => buf.getByte(offset + b))).toLong)
-          case _ => None
-        }
-    }
+    val srcPort = buf.getInteger(template, L4_SRC_PORT).get.toInt
+    val dstPort = buf.getInteger(template, L4_DST_PORT).get.toInt
 
-    def getIntOr(field1: Int, field2: Int): Long = getInt(field1) orElse getInt(field2) getOrElse 0L
+    val srcAS = buf.getInteger(template, SRC_AS) getOrElse 0L toInt
+    val dstAS = buf.getInteger(template, DST_AS) getOrElse 0L toInt
+    val proto = buf.getInteger(template, PROT) getOrElse 0L toInt
+    val tos = buf.getInteger(template, SRC_TOS) getOrElse 0L toInt
 
-    def getAddress(field1: Int): Option[InetAddress] =
-      if (template.hasField(field1)) Tryo(buf.getInetAddress(template, field1)) else None
-
-    def getAddressOr(field1: Int, field2: Int) =
-      getAddress(field1) orElse getAddress(field2) getOrElse InetAddress.getByName("0.0.0.0")
-
-    val srcPort = buf.getUnsignedShort(template.typeOffset(L4_SRC_PORT))
-    val dstPort = buf.getUnsignedShort(template.typeOffset(L4_DST_PORT))
-    val srcAS = getInt(SRC_AS) getOrElse 0L toInt
-    val dstAS = getInt(DST_AS) getOrElse 0L toInt
+    val getSrcs = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
+    val getDsts = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
+    val nextHop = buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)
 
     val direction: Option[Int] = if (!template.hasDirection) None else
       Some(buf.getUnsignedByte(template.typeOffset(DIRECTION)).toInt)
-
-    val getSrcs = getAddressOr(IPV4_SRC_ADDR, IPV6_SRC_ADDR)
-    val getDsts = getAddressOr(IPV4_DST_ADDR, IPV6_DST_ADDR)
 
     val srcAddress = direction match {
       case Some(0) => getSrcs
@@ -190,44 +177,32 @@ private[netflow] object TemplateFlow {
       case Some(1) => getSrcs
       case _ => getDsts
     }
-    val nextHop = getAddressOr(IPV4_NEXT_HOP, IPV6_NEXT_HOP)
 
     val pkts = direction match {
-      case Some(0) => getIntOr(InPKTS, OutPKTS)
-      case Some(1) => getIntOr(OutPKTS, InPKTS)
-      case _ => getIntOr(InPKTS, OutPKTS)
+      case Some(0) => buf.getInteger(template, InPKTS, OutPKTS)
+      case Some(1) => buf.getInteger(template, OutPKTS, InPKTS)
+      case _ => buf.getInteger(template, InPKTS, OutPKTS)
     }
-    val bytes = direction match {
-      case Some(0) => getIntOr(InBYTES, OutBYTES)
-      case Some(1) => getIntOr(OutBYTES, InBYTES)
-      case _ => getIntOr(InBYTES, OutBYTES)
-    }
-    val proto = getInt(PROT) getOrElse 0L toInt
-    val tos = getInt(SRC_TOS) getOrElse 0L toInt
 
-    val flow = TemplateFlow(version, sender, srcPort, dstPort, srcAS, dstAS, srcAddress, dstAddress, nextHop, pkts, bytes, proto, tos)
+    val bytes = direction match {
+      case Some(0) => buf.getInteger(template, InBYTES, OutBYTES)
+      case Some(1) => buf.getInteger(template, OutBYTES, InBYTES)
+      case _ => buf.getInteger(template, InBYTES, OutBYTES)
+    }
+
     direction match {
-      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x, flow)
+      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x)
       case _ =>
     }
-    flow
+    IPFlowData(
+      "netflow:" + version + ":flow",
+      sender,
+      srcPort, dstPort,
+      srcAS, dstAS,
+      srcAddress, dstAddress, nextHop,
+      pkts, bytes, proto, tos,
+      buf.readableBytes)
   }
 
 }
 
-private[netflow] case class TemplateFlow(
-  versionNumber: Int,
-  sender: InetSocketAddress,
-  srcPort: Int,
-  dstPort: Int,
-  srcAS: Int,
-  dstAS: Int,
-  srcAddress: InetAddress,
-  dstAddress: InetAddress,
-  nextHop: InetAddress,
-  pkts: Long,
-  bytes: Long,
-  proto: Int,
-  tos: Int) extends FlowData {
-  lazy val version = "netflow:" + versionNumber + ":flow"
-}

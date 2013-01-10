@@ -1,4 +1,4 @@
-package io.netflow.flows.cisco
+package io.netflow.flows.sflow
 
 import io.netflow.flows._
 import io.wasted.util._
@@ -8,74 +8,99 @@ import org.joda.time.DateTime
 import java.net.{ InetAddress, InetSocketAddress }
 
 /**
- * NetFlow Version 1, 5, 6 or 7 Packet
+ * sFlow Version 5 Packet
  *
- * The common thing between all those NetFlow-Versions is the beginning of their
- * header and most of their data. Another common thing is that they all only can
- * work with IPv4.
+ * On sFlows which don't have srcAS and dstAS, we simply set them to 0.
  *
- * On NetFlows which don't have srcAS and dstAS, we simply set them to 0.
+ * Flow coming from a v4 Agent
  *
  * *-------*---------------*------------------------------------------------------*
  * | Bytes | Contents      | Description                                          |
  * *-------*---------------*------------------------------------------------------*
- * | 0-1   | version       | The version of NetFlow records exported 005          |
+ * | 0-3   | version       | The version of sFlow records exported 005            |
  * *-------*---------------*------------------------------------------------------*
- * | 2-3   | count         | Number of flows exported in this packet (1-30)       |
+ * | 4-7   | agent version | The InetAddress version of the Agent (1=v4, 2=v6)    |
  * *-------*---------------*------------------------------------------------------*
- * | 4-7   | SysUptime     | Current time in milli since the export device booted |
+ * | 8-11  | agent IPv4    | IPv4 Address of the Agent                            |
  * *-------*---------------*------------------------------------------------------*
- * | 8-11  | unix_secs     | Current count of seconds since 0000 UTC 1970         |
+ * | 12-15 | agent sub id  | Agent Sub ID                                         |
  * *-------*---------------*------------------------------------------------------*
- * | 12-15 | unix_nsecs    | Residual nanoseconds since 0000 UTC 1970             |
+ * | 16-19 | sequence id   | Sequence ID                                          |
+ * *-------*---------------*------------------------------------------------------*
+ * | 20-23 | sysuptime     | System Uptime                                        |
+ * *-------*---------------*------------------------------------------------------*
+ * | 24-27 | samples       | Number of samples                                    |
+ * *-------*---------------*------------------------------------------------------*
+ *
+ * Flow coming from a v6 Agent
+ *
+ * *-------*---------------*------------------------------------------------------*
+ * | Bytes | Contents      | Description                                          |
+ * *-------*---------------*------------------------------------------------------*
+ * | 0-3   | version       | The version of sFlow records exported 005            |
+ * *-------*---------------*------------------------------------------------------*
+ * | 4-7   | agent version | The InetAddress version of the Agent (1=v4, 2=v6)    |
+ * *-------*---------------*------------------------------------------------------*
+ * | 8-23  | agent IPv6    | IPv6 Address of the Agent                            |
+ * *-------*---------------*------------------------------------------------------*
+ * | 24-27 | agent sub id  | Agent Sub ID                                         |
+ * *-------*---------------*------------------------------------------------------*
+ * | 28-31 | sequence id   | Sequence ID                                          |
+ * *-------*---------------*------------------------------------------------------*
+ * | 32-35 | sysuptime     | System Uptime                                        |
+ * *-------*---------------*------------------------------------------------------*
+ * | 36-39 | samples       | Number of samples                                    |
  * *-------*---------------*------------------------------------------------------*
  */
-private[netflow] object LegacyFlowPacket {
-  val versionMap = Map(1 -> (16, 48), 5 -> (24, 48), 6 -> (24, 52), 7 -> (24, 52))
+private[netflow] object SFlowV5Packet {
 
   /**
-   * Parse a Version 1, 5, 6 or 7 Flow Packet
+   * Parse a Version 5 sFlow Packet
    *
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): LegacyFlowPacket = {
-    val version = buf.getInteger(0, 2).get.toInt
-    if (!versionMap.contains(version)) throw new InvalidFlowVersionException(sender, version)
+  def apply(sender: InetSocketAddress, buf: ByteBuf): SFlowV5Packet = {
+    val version = buf.getInteger(0, 4).get.toInt
+    if (version != 5) throw new InvalidFlowVersionException(sender, version)
 
-    val (headerSize, flowSize) = versionMap(version)
     val len = buf.readableBytes
-    if (len < headerSize)
+    if (len < 28)
       throw new IncompleteFlowPacketHeaderException(sender)
 
-    val count = buf.getInteger(2, 2).get.toInt
-    if (count <= 0 || len != headerSize + count * flowSize)
-      throw new CorruptFlowPacketException(sender)
+    val agentIPversion = if (buf.getInteger(4, 4).get.toInt == 1) 4 else 6
+    val agentLength = if (agentIPversion == 4) 4 else 16
+    val agent = buf.getInetAddress(8, agentLength)
 
-    val uptime = buf.getInteger(4, 4).get
-    val unix_secs = buf.getInteger(8, 4).get
+    var offset = 8 + agentLength
+    val agentSubId = buf.getInteger(offset, 4).get
+    val sequenceId = buf.getInteger(offset + 4, 4).get
+    val uptime = buf.getInteger(offset + 8, 4).get
+    val count = buf.getInteger(offset + 12, 4).get.toInt
+    offset = offset + 16
 
     val flows = Vector(0 to count - 1: _*) map { i =>
-      LegacyFlow(version, sender, buf.slice(headerSize + (i * flowSize), flowSize))
+      val flow = SFlowV5(5, sender, buf.slice(offset, buf.readableBytes - offset))
+      offset += flow.length + 8
+      flow
     }
 
-    val date = new org.joda.time.DateTime(unix_secs * 1000)
-    LegacyFlowPacket(version, sender, count, uptime, date, flows)
+    SFlowV5Packet(version, sender, count, uptime, new DateTime, flows)
   }
 }
 
-private[netflow] case class LegacyFlowPacket(
+private[netflow] case class SFlowV5Packet(
   versionNumber: Int,
   sender: InetSocketAddress,
   count: Int,
   uptime: Long,
   date: DateTime,
   flows: Vector[Flow]) extends FlowPacket {
-  lazy val version = "netflow:" + versionNumber + ":packet"
+  lazy val version = "sflow:" + versionNumber + ":packet"
 }
 
 /**
- * NetFlow Version 1, 5, 6 or 7 Flow
+ * sFlow Version 5
  *
  * *-------*-----------*----------------------------------------------------------*
  * | Bytes | Contents  | Description                                              |
@@ -117,41 +142,23 @@ private[netflow] case class LegacyFlowPacket(
  * *-------*-----------*----------------------------------------------------------*
  */
 
-private[netflow] object LegacyFlow {
+private[netflow] object SFlowV5 {
 
   /**
-   * Parse a Version 1, 5, 6 or 7 Flow
+   * Parse a Version 5 sFlow
    *
    * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IPFlowData = {
-    val srcPort = buf.getInteger(32, 2).get.toInt
-    val dstPort = buf.getInteger(34, 2).get.toInt
+  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IFFlowData = {
+    // Since sFlows have dynamic length, we need to keep count
+    var recordLength = 0
 
-    val srcAS = version match { case 5 | 6 | 7 => buf.getInteger(40, 2).get.toInt case _ => 0 }
-    val dstAS = version match { case 5 | 6 | 7 => buf.getInteger(42, 2).get.toInt case _ => 0 }
-
-    val srcAddress = buf.getInetAddress(0, 4)
-    val dstAddress = buf.getInetAddress(4, 4)
-
-    val nextHop = buf.getInetAddress(8, 4)
-
-    val pkts = buf.getInteger(16, 4).get
-    val bytes = buf.getInteger(20, 4).get
-
-    val proto = buf.getUnsignedByte(38).toInt
-    val tos = buf.getUnsignedByte(39).toInt
-
-    IPFlowData(
+    IFFlowData(
       "netflow:" + version + ":flow",
       sender,
-      srcPort, dstPort,
-      srcAS, dstAS,
-      srcAddress, dstAddress, nextHop,
-      pkts, bytes, proto, tos,
-      buf.readableBytes)
+      recordLength)
   }
 }
 

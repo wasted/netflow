@@ -61,12 +61,13 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       context.stop(self)
     case msg: DatagramPacket =>
       Shutdown.avoid()
-      val fp = handleCisco(sender, msg.data) //getOrElse
-      if (fp == None) {
-        io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
-        backend.countDatagram(new DateTime, sender, "bad")
+      handleSFlow(sender, msg.data) orElse handleCisco(sender, msg.data) match {
+        case Some(flowPacket) => save(flowPacket)
+        case None =>
+          debug("Unsupported FlowPacket received")
+          io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
+          backend.countDatagram(new DateTime, sender, "bad")
       }
-
     case Flush =>
       Flush.action()
   }
@@ -75,29 +76,21 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
 
+  private def handleSFlow(sender: InetSocketAddress, buf: ByteBuf): Option[FlowPacket] = {
+    if (buf.readableBytes < 28) return None
+    Tryo(buf.getLong(0)) match {
+      case Some(3) => None // sFlow 3
+      case Some(4) => None // sFlow 4
+      case Some(5) => Tryo(sflow.SFlowV5Packet(sender, buf))
+      case _ => None
+    }
+  }
+
   private def handleCisco(sender: InetSocketAddress, buf: ByteBuf): Option[FlowPacket] =
-    Try(buf.getUnsignedShort(0)) match {
-      // Not a NetFlow!
-      case Failure(e) => None
-      case Success(version) =>
-        version match {
-          // Version 1, 5, 6 and 7 are handled by the LegacyFlowParser
-          case 1 | 5 | 6 | 7 =>
-            val flowPacket = cisco.LegacyFlowPacket(version, sender, buf)
-            save(flowPacket)
-            Some(flowPacket)
-
-          // Version 9 and 10 (IPFIX) are handled separately
-          case 9 | 10 =>
-            val flowPacket = cisco.TemplateFlowPacket(version, sender, buf)
-            save(flowPacket)
-            Some(flowPacket)
-
-          // No Version machted
-          case _ =>
-            debug("Unsupported NetFlow version " + version + " received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
-            None
-        }
+    Tryo(buf.getUnsignedShort(0)) match {
+      case Some(v) if v == 1 || v == 5 || v == 6 || v == 7 => Tryo(cisco.LegacyFlowPacket(sender, buf))
+      case Some(v) if v == 9 || v == 10 => Tryo(cisco.TemplateFlowPacket(sender, buf))
+      case _ => None
     }
 
   private def save(flowPacket: FlowPacket): Unit = {
@@ -105,20 +98,20 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       case tmpl: cisco.Template =>
         backend.save(tmpl)
 
-      /* Handle FlowData */
-      case flow: FlowData =>
+      /* Handle IPFlowData */
+      case flow: IPFlowData =>
         var ourFlow = false
 
         // src - in
         findNetworks(flow.srcAddress) foreach { prefix =>
           ourFlow = true
-          save(flowPacket, flow, flow.srcAddress, 'in, prefix.toString())
+          save(flowPacket, flow, flow.srcAddress, 'in, prefix.toString)
         }
 
         // dst - out
         findNetworks(flow.dstAddress) foreach { prefix =>
           ourFlow = true
-          save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString())
+          save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString)
         }
 
         // thruput - in
@@ -138,8 +131,7 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
       case _ =>
     }
 
-    val recvdFlows = flowPacket.flows.
-      groupBy(_.version)
+    val recvdFlows = flowPacket.flows.groupBy(_.version)
 
     val recvdFlowsStr = List(flowPacket.flows.length + "/" + flowPacket.count + " flows passed") ++
       recvdFlows.map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length) mkString (", ")
@@ -156,12 +148,12 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   }
 
   // Handle invalid Flows
-  def save(flowPacket: FlowPacket, flow: FlowData) {
+  def save(flowPacket: FlowPacket, flow: IPFlowData) {
   }
 
   // Handle valid Flows
 
-  def save(flowPacket: FlowPacket, flow: FlowData, localAddress: InetAddress, direction: Symbol, prefix: String) {
+  def save(flowPacket: FlowPacket, flow: IPFlowData, localAddress: InetAddress, direction: Symbol, prefix: String) {
     val dir = direction.name
     val ip = localAddress.getHostAddress
     val prot = flow.proto

@@ -1,6 +1,6 @@
 package io.netflow.flows.cisco
 
-import io.netflow.flows.Flow
+import io.netflow.flows._
 import io.netflow.Service
 import io.wasted.util._
 

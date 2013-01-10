@@ -1,12 +1,10 @@
-package io.netflow.flows.cisco
-
-import io.netflow.flows.FlowData
+package io.netflow.flows
 
 import java.net.InetSocketAddress
 
-class FlowException(msg: String) extends Exception(msg)
+class InvalidFlowVersionException(src: InetSocketAddress, version: Int) extends FlowException("Version " + version + " from " + src.getAddress.getHostAddress + "/" + src.getPort)
 
-class IllegalFlowDirectionException(src: InetSocketAddress, direction: Int, fd: FlowData) extends FlowException("Direction " + direction + " from " + src.getAddress.getHostAddress + "/" + src.getPort + ":\n\t" + fd.toString)
+class IllegalFlowDirectionException(src: InetSocketAddress, direction: Int) extends FlowException("Direction " + direction + " from " + src.getAddress.getHostAddress + "/" + src.getPort)
 
 class IncompleteFlowPacketHeaderException(src: InetSocketAddress) extends FlowException("From " + src.getAddress.getHostAddress + "/" + src.getPort)
 
