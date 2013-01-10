@@ -79,7 +79,7 @@ private[netflow] object SFlowV5Packet {
     val count = buf.getInteger(offset + 12, 4).get.toInt
     offset = offset + 16
 
-    val flows = Vector(0 to count - 1: _*) map { i =>
+    val flows = Vector.range(0, count - 1) map { i =>
       val flow = SFlowV5(5, sender, buf.slice(offset, buf.readableBytes - offset))
       offset += flow.length + 8
       flow
