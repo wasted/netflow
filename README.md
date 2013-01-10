@@ -26,6 +26,7 @@ Currently only the [Redis](http://redis.io) Key-Value-Store is supported, but si
 
 - NetFlow v8 - totally weird format, would take too much time. [Check yourself…](http://netflow.caligare.com/netflow_v8.htm)
 
+**If we get a pull-request, we won't refuse it. ;)**
 
 ## Roadmap and Bugs
 
