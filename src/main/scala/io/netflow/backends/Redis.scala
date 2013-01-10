@@ -36,7 +36,9 @@ private[netflow] class Redis(host: String, port: Int) extends Storage {
 
   def save(tmpl: cisco.Template) {
     val (ip, port) = (tmpl.sender.getAddress.getHostAddress, tmpl.sender.getPort)
-    redisClient.hmset("template:" + ip + "/" + port + ":" + tmpl.id, tmpl.objectMap)
+    val key = "template:" + ip + "/" + port + ":" + tmpl.id
+    redisClient.del(Array(key))
+    redisClient.hmset(key, tmpl.objectMap)
   }
 
   def countDatagram(date: DateTime, sender: InetSocketAddress, kind: String, flowsPassed: Int = 0) {
