@@ -9,7 +9,7 @@ import java.net.InetSocketAddress
 
 import org.joda.time.DateTime
 
-private[netflow] object Storage extends Logger {
+object Storage extends Logger {
 
   private val host = Config.getString("redis.host", "127.0.0.1")
   private val port = Config.getInt("redis.port", 6379)
@@ -24,9 +24,9 @@ private[netflow] object Storage extends Logger {
   def stop(c: Storage) { pool.release(c) }
 }
 
-private[netflow] trait Storage extends Logger {
+trait Storage extends Logger {
   def save(flowData: Map[(String, String), Long], sender: InetSocketAddress): Unit
-  def save(template: cisco.Template): Unit
+  def save(template: cflow.Template): Unit
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]
 
   /**

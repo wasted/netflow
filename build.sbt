@@ -41,7 +41,7 @@ resolvers ++= Seq(
 
 
 libraryDependencies ++= Seq(
-  "io.wasted" %% "wasted-util" % "0.2.3",
+  "io.wasted" %% "wasted-util" % "0.2.4",
   "com.typesafe.akka" %% "akka-actor" % "2.1.0",
   "ch.qos.logback" % "logback-classic" % "1.0.7" % "compile",
   "org.specs2" %% "specs2" % "1.13" % "test",

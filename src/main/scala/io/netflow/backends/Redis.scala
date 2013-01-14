@@ -12,13 +12,13 @@ import io.netty.util.CharsetUtil
 import java.util.UUID
 import java.net.InetSocketAddress
 
-private[netflow] class Redis(host: String, port: Int) extends Storage {
+class Redis(host: String, port: Int) extends Storage {
   private val redisClient = new RedisClient(host, port)
 
   def save(flowData: Map[(String, String), Long], sender: InetSocketAddress) {
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
-    val prefix = "netflow:" + senderIP + "/" + senderPort
+    val prefix = "cflow:" + senderIP + "/" + senderPort
 
     flowData foreach {
       case ((hash, name), value) => redisClient.hincrby(prefix + ":" + hash, name, value)
@@ -34,7 +34,7 @@ private[netflow] class Redis(host: String, port: Int) extends Storage {
     if (fields.size == 0) None else Some(fields)
   }
 
-  def save(tmpl: cisco.Template) {
+  def save(tmpl: cflow.Template) {
     val (ip, port) = (tmpl.sender.getAddress.getHostAddress, tmpl.sender.getPort)
     val key = "template:" + ip + "/" + port + ":" + tmpl.id
     redisClient.del(Array(key))

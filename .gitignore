@@ -5,7 +5,7 @@
 ._*
 
 # sbt
-sbt-launch.jar
+sbt-launch.jar*
 project/boot
 project/target
 project/plugins/target

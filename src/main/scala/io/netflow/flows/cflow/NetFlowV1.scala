@@ -1,20 +1,13 @@
-package io.netflow.flows.cisco
+package io.netflow.flows.cflow
 
 import io.netflow.flows._
-import io.wasted.util._
 
 import io.netty.buffer._
-import org.joda.time.DateTime
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
+import scala.util.Try
 
 /**
- * NetFlow Version 1, 5, 6 or 7 Packet
- *
- * The common thing between all those NetFlow-Versions is the beginning of their
- * header and most of their data. Another common thing is that they all only can
- * work with IPv4.
- *
- * On NetFlows which don't have srcAS and dstAS, we simply set them to 0.
+ * NetFlow Version 1
  *
  * *-------*---------------*------------------------------------------------------*
  * | Bytes | Contents      | Description                                          |
@@ -30,49 +23,43 @@ import java.net.{ InetAddress, InetSocketAddress }
  * | 12-15 | unix_nsecs    | Residual nanoseconds since 0000 UTC 1970             |
  * *-------*---------------*------------------------------------------------------*
  */
-private[netflow] object LegacyFlowPacket {
-  val versionMap = Map(1 -> (16, 48), 5 -> (24, 48), 6 -> (24, 52), 7 -> (24, 52))
+
+object NetFlowV1Packet {
+  private val headerSize = 16
+  private val flowSize = 48
 
   /**
-   * Parse a Version 1, 5, 6 or 7 Flow Packet
+   * Parse a Version 1 FlowPacket
    *
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): LegacyFlowPacket = {
-    val version = buf.getInteger(0, 2).get.toInt
-    if (!versionMap.contains(version)) throw new InvalidFlowVersionException(sender, version)
+  def apply(sender: InetSocketAddress, buf: ByteBuf): Try[NetFlowV1Packet] = Try[NetFlowV1Packet] {
+    val version = buf.getInteger(0, 2).toInt
+    if (version != 1) throw new InvalidFlowVersionException(sender, version)
 
-    val (headerSize, flowSize) = versionMap(version)
-
-    val count = buf.getInteger(2, 2).get.toInt
-    if (count <= 0 || buf.readableBytes < headerSize + count * flowSize)
+    val packet = NetFlowV1Packet(sender)
+    packet.count = buf.getInteger(2, 2).toInt
+    if (packet.count <= 0 || buf.readableBytes < headerSize + packet.count * flowSize)
       throw new CorruptFlowPacketException(sender)
 
-    val uptime = buf.getInteger(4, 4).get
-    val unix_secs = buf.getInteger(8, 4).get
+    packet.uptime = buf.getInteger(4, 4) / 1000
+    packet.date = new org.joda.time.DateTime(buf.getInteger(8, 4) * 1000)
 
-    val flows = Vector.range(0, count) map { i =>
-      LegacyFlow(version, sender, buf.slice(headerSize + (i * flowSize), flowSize))
+    packet.flows = Vector.range(0, packet.count) flatMap { i =>
+      NetFlowV1(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).toOption
     }
 
-    val date = new org.joda.time.DateTime(unix_secs * 1000)
-    LegacyFlowPacket(version, sender, count, uptime, date, flows)
+    packet
   }
 }
 
-private[netflow] case class LegacyFlowPacket(
-  versionNumber: Int,
-  sender: InetSocketAddress,
-  count: Int,
-  uptime: Long,
-  date: DateTime,
-  flows: Vector[Flow]) extends FlowPacket {
-  lazy val version = "netflow:" + versionNumber + ":packet"
+case class NetFlowV1Packet(sender: InetSocketAddress) extends FlowPacket {
+  def version = "NetFlowV1 Packet"
 }
 
 /**
- * NetFlow Version 1, 5, 6 or 7 Flow
+ * NetFlow Version 1 Flow
  *
  * *-------*-----------*----------------------------------------------------------*
  * | Bytes | Contents  | Description                                              |
@@ -100,55 +87,55 @@ private[netflow] case class LegacyFlowPacket(
  * *-------*-----------*----------------------------------------------------------*
  * | 34-35 | dstport   | TCP/UDP destination port number or equivalent            |
  * *-------*-----------*----------------------------------------------------------*
- * | 36    | pad1      | Unused (zero) bytes                                      |
- * *-------*-----------*----------------------------------------------------------*
- * | 37    | tcp_flags | Cumulative OR of TCP flags                               |
+ * | 36-37 | pad1      | Unused (zero) bytes                                      |
  * *-------*-----------*----------------------------------------------------------*
  * | 38    | prot      | IP protocol type (for example, TCP = 6; UDP = 17)        |
  * *-------*-----------*----------------------------------------------------------*
  * | 39    | tos       | IP type of service (ToS)                                 |
  * *-------*-----------*----------------------------------------------------------*
- * | 40    | flags     | Cumulative OR of TCP flags                               |
+ * | 40    | tcpflags  | Cumulative OR of TCP flags                               |
  * *-------*-----------*----------------------------------------------------------*
  * | 41-47 | pad2      | Unused (zero) bytes                                      |
  * *-------*-----------*----------------------------------------------------------*
  */
 
-private[netflow] object LegacyFlow {
+object NetFlowV1 {
 
   /**
-   * Parse a Version 1, 5, 6 or 7 Flow
+   * Parse a Version 1 Flow
    *
-   * @param version NetFlow Version
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf Slice containing the UDP Packet
+   * @param uptime Seconds since UNIX Epoch when the exporting device/sender booted
    */
-  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IPFlowData = {
-    val srcPort = buf.getInteger(32, 2).get.toInt
-    val dstPort = buf.getInteger(34, 2).get.toInt
-
-    val srcAS = version match { case 5 | 6 | 7 => buf.getInteger(40, 2).get.toInt case _ => 0 }
-    val dstAS = version match { case 5 | 6 | 7 => buf.getInteger(42, 2).get.toInt case _ => 0 }
-
-    val srcAddress = buf.getInetAddress(0, 4)
-    val dstAddress = buf.getInetAddress(4, 4)
-
-    val nextHop = buf.getInetAddress(8, 4)
-
-    val pkts = buf.getInteger(16, 4).get
-    val bytes = buf.getInteger(20, 4).get
-
-    val proto = buf.getUnsignedByte(38).toInt
-    val tos = buf.getUnsignedByte(39).toInt
-
-    IPFlowData(
-      "netflow:" + version + ":flow",
-      sender,
-      srcPort, dstPort,
-      srcAS, dstAS,
-      srcAddress, dstAddress, nextHop,
-      pkts, bytes, proto, tos,
-      buf.readableBytes)
+  def apply(sender: InetSocketAddress, buf: ByteBuf, uptime: Long): Try[NetFlowV1] = Try[NetFlowV1] {
+    val flow = new NetFlowV1(sender, buf.readableBytes())
+    flow.srcAddress = buf.getInetAddress(0, 4)
+    flow.dstAddress = buf.getInetAddress(4, 4)
+    flow.nextHop = buf.getInetAddress(8, 4)
+    flow.snmpInput = buf.getInteger(12, 2).toInt
+    flow.snmpOutput = buf.getInteger(14, 2).toInt
+    flow.pkts = buf.getInteger(16, 4).toInt
+    flow.bytes = buf.getInteger(20, 4).toInt
+    flow.start = uptime + buf.getInteger(24, 4).toInt
+    flow.stop = uptime + buf.getInteger(28, 4).toInt
+    flow.srcPort = buf.getInteger(32, 2).toInt
+    flow.dstPort = buf.getInteger(34, 2).toInt
+    flow.proto = buf.getUnsignedByte(38).toInt
+    flow.tos = buf.getUnsignedByte(39).toInt
+    flow.tcpflags = buf.getUnsignedByte(40).toInt
+    flow
   }
 }
 
+case class NetFlowV1(sender: InetSocketAddress, length: Int) extends NetFlowData[NetFlowV1] {
+  def version = "NetFlowV1 Flow"
+  var snmpInput: Int = -1
+  var snmpOutput: Int = -1
+
+  override lazy val jsonExtra =
+    """,
+      "snmpInput": %s,
+      "snmpOutput": %s
+    """.format(snmpInput, snmpOutput)
+}

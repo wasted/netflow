@@ -15,13 +15,13 @@ import akka.actor._
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-private[netflow] class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with Thruput with Logger {
+class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with Thruput with Logger {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
   protected var thruputPrefixes: List[InetPrefix] = List()
   private var senderPrefixes: List[InetPrefix] = List()
 
   // this is a temporary cache which will be flushed
-  private var templateCache: Map[Int, cisco.Template] = Map()
+  private var templateCache: Map[Int, cflow.Template] = Map()
 
   private val accountPerIP = false
   private val accountPerIPProto = false
@@ -62,18 +62,18 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   def receive = {
     case Shutdown =>
       io.netflow.Service.removeActorFor(sender)
-      backend.stop
+      backend.stop()
       context.stop(self)
     case data: ByteBuf =>
       Shutdown.avoid()
       handleSFlow(data) orElse handleCisco(data) match {
-        case Some(flowPacket) => save(flowPacket)
-        case None =>
+        case Success(flowPacket) => save(flowPacket)
+        case Failure(e) =>
           debug("Unsupported FlowPacket received")
           io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
           backend.countDatagram(new DateTime, sender, "bad")
       }
-      data.free
+      data.free()
     case Flush =>
       Flush.action()
   }
@@ -82,31 +82,37 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
 
-  private def handleSFlow(buf: ByteBuf): Option[FlowPacket] = {
-    if (buf.readableBytes < 28) return None
+  private val unhandledException = Failure(new UnhandledFlowPacketException(sender))
+
+  private def handleSFlow(buf: ByteBuf): Try[sflow.SFlowV5Packet] = {
+    if (buf.readableBytes < 28) return unhandledException
     Tryo(buf.getLong(0)) match {
-      case Some(3) => None // sFlow 3
-      case Some(4) => None // sFlow 4
-      case Some(5) => Tryo(sflow.SFlowV5Packet(sender, buf))
-      case _ => None
+      case Some(3) => unhandledException // sFlow 3
+      case Some(4) => unhandledException // sFlow 4
+      case Some(5) => sflow.SFlowV5Packet(sender, buf)
+      case _ => unhandledException
     }
   }
 
-  private def handleCisco(buf: ByteBuf): Option[FlowPacket] =
+  private def handleCisco(buf: ByteBuf): Try[FlowPacket] =
     Tryo(buf.getUnsignedShort(0)) match {
-      case Some(v) if v == 1 || v == 5 || v == 6 || v == 7 => Tryo(cisco.LegacyFlowPacket(sender, buf))
-      case Some(v) if v == 9 || v == 10 => Tryo(cisco.TemplateFlowPacket(sender, buf))
-      case _ => None
+      case Some(1) => cflow.NetFlowV1Packet(sender, buf)
+      case Some(5) => cflow.NetFlowV5Packet(sender, buf)
+      case Some(6) => cflow.NetFlowV6Packet(sender, buf)
+      case Some(7) => cflow.NetFlowV7Packet(sender, buf)
+      case Some(9) => cflow.NetFlowV9Packet(sender, buf)
+      case Some(10) => cflow.NetFlowV10Packet(sender, buf)
+      case _ => unhandledException
     }
 
   private def save(flowPacket: FlowPacket): Unit = {
     flowPacket.flows foreach {
-      case tmpl: cisco.Template =>
+      case tmpl: cflow.Template =>
         templateCache ++= Map(tmpl.id -> tmpl)
         backend.save(tmpl)
 
-      /* Handle IPFlowData */
-      case flow: IPFlowData =>
+      /* Handle NetFlowData */
+      case flow: NetFlowData[_] =>
         var ourFlow = false
 
         // src - in
@@ -123,12 +129,12 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
 
         // thruput - in
         findThruputNetworks(flow.srcAddress) foreach { prefix =>
-          thruput(sender, prefix, flow.dstAddress, flow)
+          thruput(sender, flow, prefix, flow.dstAddress)
         }
 
         // thruput - out
         findThruputNetworks(flow.dstAddress) foreach { prefix =>
-          thruput(sender, prefix, flow.srcAddress, flow)
+          thruput(sender, flow, prefix, flow.srcAddress)
         }
 
         if (!ourFlow) { // invalid flow
@@ -155,12 +161,11 @@ private[netflow] class SenderActor(sender: InetSocketAddress, protected val back
   }
 
   // Handle invalid Flows
-  def save(flowPacket: FlowPacket, flow: IPFlowData) {
+  def save(flowPacket: FlowPacket, flow: NetFlowData[_]) {
   }
 
-  // Handle valid Flows
-
-  def save(flowPacket: FlowPacket, flow: IPFlowData, localAddress: InetAddress, direction: Symbol, prefix: String) {
+  // Handle NetFlowData
+  def save(flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: Symbol, prefix: String) {
     val dir = direction.name
     val ip = localAddress.getHostAddress
     val prot = flow.proto

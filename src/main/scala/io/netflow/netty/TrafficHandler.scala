@@ -9,7 +9,7 @@ import io.netty.channel.socket.DatagramPacket
 import java.net.InetSocketAddress
 
 @ChannelHandler.Sharable
-private[netflow] object TrafficHandler extends ChannelInboundMessageHandlerAdapter[DatagramPacket] with Logger {
+object TrafficHandler extends ChannelInboundMessageHandlerAdapter[DatagramPacket] with Logger {
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: Throwable) {
     e.printStackTrace()

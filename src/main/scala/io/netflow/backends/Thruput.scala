@@ -4,9 +4,6 @@ import io.netflow.flows._
 import io.wasted.util._
 import io.wasted.util.http._
 
-import scala.util.{ Try, Success, Failure }
-import scala.concurrent._
-import java.util.concurrent.TimeUnit
 import java.net.{ InetSocketAddress, InetAddress }
 import java.util.UUID
 
@@ -20,24 +17,26 @@ case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
   val auth = UUID.fromString(authStr)
   val sign = UUID.fromString(signStr)
   val url = new java.net.URL(urlStr)
-  def msg(fd: JsonFlowData, ip: InetAddress, toUser: List[String]): String = {
+  def msg(fd: Flow[_], addr: InetAddress, toUser: List[String]): String = {
     val user = toUser.length match {
       case 0 => ""
       case _ => """, "to": ["""" + toUser.mkString("""", """") + """"]"""
     }
-    """{ "mime": "wasted/netflow", "body": """ + fd.json + """, "ip": """" + ip.getHostAddress + """"""" + user + " }"
+    val ip = """, "ip": """" + addr.getHostAddress + """""""
+
+    """{ "mime": "wasted/cflow", "body": """ + fd.json + ip + user + " }"
   }
 }
-private[netflow] trait Thruput {
+trait Thruput {
   protected val backend: Storage
   protected var thruputPrefixes: List[InetPrefix]
 
   protected val thruputHttpClient = HttpClient(2)
 
-  protected val thruput = (sender: InetSocketAddress, prefix: InetPrefix, addr: InetAddress, fd: JsonFlowData) =>
+  protected val thruput = (sender: InetSocketAddress, flow: Flow[_], prefix: InetPrefix, addr: InetAddress) =>
     backend.getThruputRecipients(sender, prefix).groupBy(_.platform) foreach { platformRcpts =>
       val rcpt = platformRcpts._1
-      Tryo(thruputHttpClient.thruput(rcpt.url, rcpt.auth, rcpt.sign, rcpt.msg(fd, addr, platformRcpts._2.flatMap(_.toUser))))
+      Tryo(thruputHttpClient.thruput(rcpt.url, rcpt.auth, rcpt.sign, rcpt.msg(flow, addr, platformRcpts._2.flatMap(_.toUser))))
     }
 
 }

@@ -20,7 +20,7 @@ object Server extends App with Logger { PS =>
   def listeningOn() = listeners
 
   def start() {
-    info("Starting up netflow.io version %s", lib.BuildInfo.version)
+    info("Starting up cflow.io version %s", lib.BuildInfo.version)
     Service.start()
 
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory())
