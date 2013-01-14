@@ -10,11 +10,11 @@ import java.net.InetSocketAddress
 import akka.actor._
 
 /**
- * Our very own lookup service for all things cflow related
+ * Our very own lookup service for all things netflow related
  */
 object Service extends Logger {
   val backend: Storage = Storage.start().get
-  val system = ActorSystem("cflow")
+  val system = ActorSystem("netflow")
 
   private var senderActors = HashMap[InetSocketAddress, ActorRef]()
   def findActorFor(sender: InetSocketAddress): Option[ActorRef] = senderActors.get(sender) match {
@@ -26,7 +26,7 @@ object Service extends Logger {
             case Some(actor) =>
               senderActors ++= Map(sender -> actor)
               actor
-            case None => system.actorFor("akka://cflow/user/" + sender.toString.replaceAll(",", ""))
+            case None => system.actorFor("akka://netflow/user/" + sender.toString.replaceAll(",", ""))
           }
           Some(actor)
         case _ => None

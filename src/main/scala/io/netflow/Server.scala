@@ -13,41 +13,42 @@ import scala.util.{ Try, Success, Failure }
 object Server extends App with Logger { PS =>
   override def main(args: Array[String]) { start() }
   private var servers: List[Bootstrap] = List()
-  private var listeners: List[java.net.InetSocketAddress] = List()
-  private var senders: List[(java.net.InetAddress, Int)] = List()
-
-  def receiveFrom() = senders
-  def listeningOn() = listeners
 
   def start() {
-    info("Starting up cflow.io version %s", lib.BuildInfo.version)
+    info("Starting up netflow.io version %s", lib.BuildInfo.version)
     Service.start()
 
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory())
-    val conf = Config.getStringList("udp.listen", List("0.0.0.0:2055")).map(_.split(":"))
-    listeners = conf.map(l => new java.net.InetSocketAddress(l.head, l.last.toInt))
 
-    // Refresh filters from Backend
-    Try {
-      servers = listeners.map { addr =>
-        val srv = new Bootstrap
-        val chan = srv.group(new NioEventLoopGroup)
-          .localAddress(addr)
-          .channel(classOf[NioDatagramChannel])
-          .handler(TrafficHandler)
-          .option[java.lang.Integer](ChannelOption.SO_RCVBUF, 102400)
-        srv.bind().sync
-        info("Listening on %s:%s", addr.getAddress.getHostAddress, addr.getPort)
-        srv
+    def startListeningFor(what: String, config: String, default: List[String], handler: ChannelHandler) {
+      val conf = Config.getStringList(config, default).map(_.split(":"))
+      val listeners = conf.map(l => new java.net.InetSocketAddress(l.head, l.last.toInt))
+
+      // Refresh filters from Backend
+      Try {
+        servers = listeners.map { addr =>
+          val srv = new Bootstrap
+          val chan = srv.group(new NioEventLoopGroup)
+            .localAddress(addr)
+            .channel(classOf[NioDatagramChannel])
+            .handler(handler)
+            .option[java.lang.Integer](ChannelOption.SO_RCVBUF, 102400)
+          srv.bind().sync
+          info("Listening for %s on %s:%s", what, addr.getAddress.getHostAddress, addr.getPort)
+          srv
+        }
+      } match {
+        case Success(v) => Some(v)
+        case Failure(f) =>
+          error("Unable to bind for %s to that ip:port combination. Check your configuration.".format(what))
+          debug(f)
+          stop
+          return
       }
-    } match {
-      case Success(v) => Some(v)
-      case Failure(f) =>
-        error("Unable to bind to that ip:port combination. Check your configuration.")
-        debug(f)
-        stop
-        return
     }
+
+    startListeningFor("NetFlow", "netflow.listen", List("0.0.0.0:2055"), NetFlowHandler)
+    startListeningFor("sFlow", "sflow.listen", List("0.0.0.0:6343"), SFlowHandler)
 
     info("Ready")
 
@@ -63,8 +64,6 @@ object Server extends App with Logger { PS =>
     // Shut down all event loops to terminate all threads.
     Tryo(servers.foreach(_.shutdown))
     servers = List()
-    listeners = List()
-    senders = List()
     Service.stop()
     info("Shutdown complete")
   }

@@ -122,7 +122,7 @@ object NetFlowV10Packet extends Logger {
 }
 
 case class NetFlowV10Packet(sender: InetSocketAddress) extends FlowPacket {
-  def version = "NetFlowV10Data Packet"
+  def version = "NetFlowV10 Packet"
   var flowSequence: Long = -1L
   var sourceId: Long = -1L
 }

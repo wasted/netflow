@@ -2,6 +2,7 @@ package io.netflow.actors
 
 import io.netflow.flows._
 import io.netflow.backends._
+import io.netflow.netty._
 import io.wasted.util._
 
 import scala.util.{ Try, Success, Failure }
@@ -64,14 +65,24 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       io.netflow.Service.removeActorFor(sender)
       backend.stop()
       context.stop(self)
-    case data: ByteBuf =>
+    case NetFlow(data: ByteBuf) =>
       Shutdown.avoid()
-      handleSFlow(data) orElse handleCisco(data) match {
+      handleCisco(data) match {
         case Success(flowPacket) => save(flowPacket)
         case Failure(e) =>
-          debug("Unsupported FlowPacket received")
-          io.netflow.netty.TrafficHandler.unsupportedPacket(sender)
-          backend.countDatagram(new DateTime, sender, "bad")
+          debug("Unsupported NetFlow Packet received: %s", e)
+          NetFlowHandler.unsupportedPacket(sender)
+          backend.countDatagram(new DateTime, sender, "bad:netflow")
+      }
+      data.free()
+    case SFlow(data: ByteBuf) =>
+      Shutdown.avoid()
+      handleSFlow(data) match {
+        case Success(flowPacket) => save(flowPacket)
+        case Failure(e) =>
+          debug("Unsupported sFlow Packet received: %s", e)
+          NetFlowHandler.unsupportedPacket(sender)
+          backend.countDatagram(new DateTime, sender, "bad:sflow")
       }
       data.free()
     case Flush =>
