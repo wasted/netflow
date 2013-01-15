@@ -65,11 +65,11 @@ object SFlowV5Packet extends Logger {
     val version = buf.getInteger(0, 4).toInt
     if (version != 5) throw new InvalidFlowVersionException(sender, version)
 
-    val len = buf.readableBytes
-    if (len < 28)
-      throw new IncompleteFlowPacketHeaderException(sender)
+    buf.readerIndex(0)
+    val packet = SFlowV5Packet(sender, buf.readableBytes)
 
-    val packet = SFlowV5Packet(sender)
+    if (packet.length < 28)
+      throw new IncompleteFlowPacketHeaderException(sender)
 
     val agentIPversion = if (buf.getInteger(4, 4) == 1L) 4 else 6
     val agentLength = if (agentIPversion == 4) 4 else 16
@@ -91,7 +91,7 @@ object SFlowV5Packet extends Logger {
   }
 }
 
-case class SFlowV5Packet(sender: InetSocketAddress) extends FlowPacket {
+case class SFlowV5Packet(sender: InetSocketAddress, length: Int) extends FlowPacket {
   def version = "sFlowV5 Packet"
 }
 

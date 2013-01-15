@@ -47,7 +47,7 @@ object NetFlowV5Packet {
     val version = buf.getInteger(0, 2).toInt
     if (version != 5) throw new InvalidFlowVersionException(sender, version)
 
-    val packet = NetFlowV5Packet(sender)
+    val packet = NetFlowV5Packet(sender, buf.readableBytes)
     packet.count = buf.getInteger(2, 2).toInt
     if (packet.count <= 0 || buf.readableBytes < headerSize + packet.count * flowSize)
       throw new CorruptFlowPacketException(sender)
@@ -67,7 +67,7 @@ object NetFlowV5Packet {
   }
 }
 
-case class NetFlowV5Packet(sender: InetSocketAddress) extends FlowPacket {
+case class NetFlowV5Packet(sender: InetSocketAddress, length: Int) extends FlowPacket {
   def version = "NetFlowV5 Packet"
   var flowSequence: Long = -1L
   var engineType: Int = -1

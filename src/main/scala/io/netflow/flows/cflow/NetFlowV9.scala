@@ -6,7 +6,7 @@ import io.wasted.util.Logger
 import io.netty.buffer._
 import scala.language.postfixOps
 import java.net.InetSocketAddress
-import scala.util.Try
+import scala.util.{ Try, Failure, Success }
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -30,7 +30,7 @@ import scala.util.Try
  * *-------*---------------*------------------------------------------------------*
  */
 object NetFlowV9Packet extends Logger {
-  private val V9_Header_Size = 20
+  private val headerSize = 20
 
   /**
    * Parse a v9 Flow Packet
@@ -41,11 +41,11 @@ object NetFlowV9Packet extends Logger {
   def apply(sender: InetSocketAddress, buf: ByteBuf): Try[NetFlowV9Packet] = Try[NetFlowV9Packet] {
     val version = buf.getInteger(0, 2).toInt
     if (version != 9) throw new InvalidFlowVersionException(sender, version)
-    val packet = NetFlowV9Packet(sender)
+    val packet = NetFlowV9Packet(sender, buf.readableBytes)
 
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
-    if (buf.readableBytes < V9_Header_Size)
+    if (buf.readableBytes < headerSize)
       throw new IncompleteFlowPacketHeaderException(sender)
 
     packet.count = buf.getInteger(2, 2).toInt
@@ -55,7 +55,7 @@ object NetFlowV9Packet extends Logger {
     packet.sourceId = buf.getInteger(16, 4)
 
     var flowsetCounter = 0
-    var packetOffset = V9_Header_Size
+    var packetOffset = headerSize
     while (flowsetCounter < packet.count && packetOffset < buf.readableBytes) {
       val flowsetId = buf.getInteger(packetOffset, 2).toInt
       val flowsetLength = buf.getInteger(packetOffset + 2, 2).toInt
@@ -72,7 +72,7 @@ object NetFlowV9Packet extends Logger {
               NetFlowV9Template(sender, buffer, flowsetId).map(packet.flows :+= _)
               flowsetCounter += 1
             } catch {
-              case e: IndexOutOfBoundsException => throw new IllegalFlowSetLengthException(sender)
+              case e: IndexOutOfBoundsException => error("Short flow received from " + senderIP + "/" + senderPort)
               case e: Throwable => warn(e.toString, e); debug(e.toString, e)
             }
             templateOffset += templateSize
@@ -90,7 +90,7 @@ object NetFlowV9Packet extends Logger {
               NetFlowV9Template(sender, buffer, flowsetId).map(packet.flows :+= _)
               flowsetCounter += 1
             } catch {
-              case e: IndexOutOfBoundsException => throw new IllegalFlowSetLengthException(sender)
+              case e: IndexOutOfBoundsException => error("Short flow received from " + senderIP + "/" + senderPort)
               case e: Throwable => warn(e.toString, e); debug(e.toString, e)
             }
             templateOffset += templateSize
@@ -103,10 +103,13 @@ object NetFlowV9Packet extends Logger {
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
                   val buffer = buf.slice(recordOffset, tmpl.length)
-                  NetFlowV9Data(sender, buffer, tmpl).map(packet.flows :+= _)
+                  NetFlowV9Data(sender, buffer, tmpl) match {
+                    case Success(flow) => packet.flows :+= flow
+                    case Failure(e) => warn(e.toString)
+                  }
                   flowsetCounter += 1
                 } catch {
-                  case e: IllegalFlowDirectionException => warn(e.toString)
+                  case e: IndexOutOfBoundsException => error("Short flow received from " + senderIP + "/" + senderPort)
                   case e: Throwable => warn(e.toString, e); e.printStackTrace()
                 }
                 recordOffset += tmpl.length
@@ -121,7 +124,7 @@ object NetFlowV9Packet extends Logger {
   }
 }
 
-case class NetFlowV9Packet(sender: InetSocketAddress) extends FlowPacket {
+case class NetFlowV9Packet(sender: InetSocketAddress, length: Int) extends FlowPacket {
   def version = "NetFlowV9 Packet"
   var flowSequence: Long = -1L
   var sourceId: Long = -1L
@@ -138,7 +141,7 @@ object NetFlowV9Data extends Logger {
    * @param template NetFlow Template for this Flow
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf, template: NetFlowV9Template): Try[NetFlowV9Data] = Try[NetFlowV9Data] {
-    val flow = NetFlowV9Data(sender, buf.readableBytes())
+    val flow = NetFlowV9Data(sender, buf.readableBytes(), template.id)
     flow.srcPort = buf.getInteger(template, L4_SRC_PORT).get.toInt
     flow.dstPort = buf.getInteger(template, L4_DST_PORT).get.toInt
 
@@ -190,7 +193,7 @@ object NetFlowV9Data extends Logger {
 
 }
 
-case class NetFlowV9Data(sender: InetSocketAddress, length: Int) extends NetFlowData[NetFlowV9Data] {
+case class NetFlowV9Data(sender: InetSocketAddress, length: Int, template: Int) extends NetFlowData[NetFlowV9Data] {
   def version = "NetFlowV9Data Flow"
 
   var extraFields = Map[String, Long]()
@@ -198,5 +201,6 @@ case class NetFlowV9Data(sender: InetSocketAddress, length: Int) extends NetFlow
     json + "\"" + b._1 + "\": %s".format(b._2)
   }
 
+  override lazy val stringExtra = "- Template %s".format(template)
 }
 

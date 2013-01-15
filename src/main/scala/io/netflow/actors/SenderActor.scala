@@ -70,8 +70,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       handleCisco(data) match {
         case Success(flowPacket) => save(flowPacket)
         case Failure(e) =>
-          debug("Unsupported NetFlow Packet received: %s", e)
-          NetFlowHandler.unsupportedPacket(sender)
+          info("Unsupported NetFlow Packet received: %s", e)
           backend.countDatagram(new DateTime, sender, "bad:netflow")
       }
       data.free()
@@ -80,8 +79,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       handleSFlow(data) match {
         case Success(flowPacket) => save(flowPacket)
         case Failure(e) =>
-          debug("Unsupported sFlow Packet received: %s", e)
-          NetFlowHandler.unsupportedPacket(sender)
+          info("Unsupported sFlow Packet received: %s", e)
           backend.countDatagram(new DateTime, sender, "bad:sflow")
       }
       data.free()
@@ -160,9 +158,23 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     val recvdFlowsStr = List(flowPacket.flows.length + "/" + flowPacket.count + " flows passed") ++
       recvdFlows.map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length) mkString (", ")
 
+    val flowSeq = flowPacket match {
+      case a: cflow.NetFlowV5Packet => ", flowSeq: " + a.flowSequence
+      case a: cflow.NetFlowV6Packet => ", flowSeq: " + a.flowSequence
+      case a: cflow.NetFlowV7Packet => ", flowSeq: " + a.flowSequence
+      case a: cflow.NetFlowV9Packet => ", flowSeq: " + a.flowSequence
+      case a: cflow.NetFlowV10Packet => ", flowSeq: " + a.flowSequence
+      case _ => ""
+    }
+
     // log an elaborate string to loglevel info describing this packet.
     // Warning: can produce huge amounts of logs if written to disk.
-    info(flowPacket.version + " from " + flowPacket.senderIP + "/" + flowPacket.senderPort + " (" + recvdFlowsStr + ")")
+    val debugStr = flowPacket.version + " from " + flowPacket.senderIP + "/" + flowPacket.senderPort +
+      " (" + recvdFlowsStr + ", length: " + flowPacket.length + flowSeq + ")"
+
+    // Sophisticated log-level hacking :<
+    if (flowPacket.count != flowPacket.flows.length) error(debugStr)
+    else if (debugStr.matches("Template")) info(debugStr) else debug(debugStr)
 
     // count them to database
     backend.countDatagram(new DateTime, sender, flowPacket.version, flowPacket.flows.length)

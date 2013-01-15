@@ -16,6 +16,7 @@ trait Flow[T] {
  */
 trait FlowPacket {
   def version: String
+  def length: Int
   def sender: InetSocketAddress
   def senderIP = sender.getAddress.getHostAddress
   def senderPort = sender.getPort
@@ -74,7 +75,8 @@ trait NetFlowData[T] extends Flow[T] {
     version, senderIP, senderPort, srcPort, dstPort, srcAddressIP, dstAddressIP,
     srcAS, dstAS, nextHopIP, proto, tos, pkts, bytes, start, stop, tcpflags, jsonExtra)
 
-  override def toString() = "%s from %s/%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes".format(
+  protected def stringExtra = ""
+  override def toString() = "%s from %s/%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(
     version, senderIP, senderPort, srcAddress.getHostAddress, srcPort, srcAS,
-    nextHop.getHostAddress, dstAddress.getHostAddress, dstPort, dstAS, proto, tos, pkts, bytes)
+    nextHop.getHostAddress, dstAddress.getHostAddress, dstPort, dstAS, proto, tos, pkts, bytes, stringExtra)
 }
