@@ -51,7 +51,7 @@ object NetFlowV7Packet {
     packet.date = new org.joda.time.DateTime(buf.getInteger(8, 4) * 1000)
     packet.flowSequence = buf.getInteger(16, 4)
 
-    packet.flows = Vector.range(0, packet.count) flatMap { i =>
+    packet.flows = Array.range(0, packet.count) flatMap { i =>
       NetFlowV7(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).toOption
     }
 

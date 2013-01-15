@@ -99,6 +99,7 @@ object NetFlowV9Packet extends Logger {
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           NetFlowV9Template(sender, flowsetId) match {
             case Some(tmpl) =>
+              if (tmpl.isOptionTemplate) println("option flow!")
               var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
@@ -203,3 +204,5 @@ case class NetFlowV9Data(sender: InetSocketAddress, length: Int, template: Int) 
   override lazy val stringExtra = "- Template %s".format(template)
 }
 
+//case class NetFlowV9Option(sender: InetSocketAddress, length: Int, template: Int) extends Flow[NetFlowV9Option] {
+//case class NetFlowV9OptionData(sender

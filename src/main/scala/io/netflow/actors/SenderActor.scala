@@ -115,7 +115,8 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     }
 
   private def save(flowPacket: FlowPacket): Unit = {
-    flowPacket.flows foreach {
+    val it1 = flowPacket.flows.iterator
+    while (it1.hasNext) it1.next() match {
       case tmpl: cflow.Template =>
         templateCache ++= Map(tmpl.id -> tmpl)
         backend.save(tmpl)
@@ -125,24 +126,32 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
         var ourFlow = false
 
         // src - in
-        findNetworks(flow.srcAddress) foreach { prefix =>
+        var it3 = findNetworks(flow.srcAddress).iterator
+        while (it3.hasNext) {
+          val prefix = it3.next
           ourFlow = true
           save(flowPacket, flow, flow.srcAddress, 'in, prefix.toString)
         }
 
         // dst - out
-        findNetworks(flow.dstAddress) foreach { prefix =>
+        it3 = findNetworks(flow.dstAddress).iterator
+        while (it3.hasNext) {
+          val prefix = it3.next
           ourFlow = true
           save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString)
         }
 
         // thruput - in
-        findThruputNetworks(flow.srcAddress) foreach { prefix =>
+        it3 = findThruputNetworks(flow.srcAddress).iterator
+        while (it3.hasNext) {
+          val prefix = it3.next
           thruput(sender, flow, prefix, flow.dstAddress)
         }
 
         // thruput - out
-        findThruputNetworks(flow.dstAddress) foreach { prefix =>
+        it3 = findThruputNetworks(flow.dstAddress).iterator
+        while (it3.hasNext) {
+          val prefix = it3.next
           thruput(sender, flow, prefix, flow.srcAddress)
         }
 
@@ -165,8 +174,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     val packetInfoStr = flowPacket.version.replaceAll("Packet", "-") + " length: " + flowPacket.length + flowSeq
     val passedFlowsStr = flowPacket.flows.length + "/" + flowPacket.count + " passed"
 
-    val recvdFlows = flowPacket.flows.groupBy(_.version)
-
+    var recvdFlows = flowPacket.flows.groupBy(_.version)
     val recvdFlowsStr = recvdFlows.toList.sortBy(_._1).map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).mkString(", ")
 
     // log an elaborate string to loglevel info describing this packet.
@@ -179,7 +187,9 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
 
     // count them to database
     backend.countDatagram(new DateTime, sender, flowPacket.version, flowPacket.flows.length)
-    recvdFlows foreach { rcvd =>
+    val it2 = recvdFlows.iterator
+    while (it2.hasNext) {
+      val rcvd = it2.next()
       backend.countDatagram(new DateTime, sender, rcvd._1, rcvd._2.length)
     }
   }

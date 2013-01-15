@@ -46,7 +46,7 @@ object NetFlowV1Packet {
     packet.uptime = buf.getInteger(4, 4) / 1000
     packet.date = new org.joda.time.DateTime(buf.getInteger(8, 4) * 1000)
 
-    packet.flows = Vector.range(0, packet.count) flatMap { i =>
+    packet.flows = Array.range(0, packet.count) flatMap { i =>
       NetFlowV1(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).toOption
     }
 

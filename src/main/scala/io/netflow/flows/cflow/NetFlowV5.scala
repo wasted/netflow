@@ -59,7 +59,7 @@ object NetFlowV5Packet {
     packet.engineId = buf.getInteger(21, 1).toInt
     packet.samplingInterval = buf.getInteger(22, 2).toInt
 
-    packet.flows = Vector.range(0, packet.count) flatMap { i =>
+    packet.flows = Array.range(0, packet.count) flatMap { i =>
       NetFlowV5(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).toOption
     }
 
