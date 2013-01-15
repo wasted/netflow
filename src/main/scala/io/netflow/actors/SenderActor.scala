@@ -153,11 +153,6 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       case _ =>
     }
 
-    val recvdFlows = flowPacket.flows.groupBy(_.version)
-
-    val recvdFlowsStr = List(flowPacket.flows.length + "/" + flowPacket.count + " flows passed") ++
-      recvdFlows.map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length) mkString (", ")
-
     val flowSeq = flowPacket match {
       case a: cflow.NetFlowV5Packet => ", flowSeq: " + a.flowSequence
       case a: cflow.NetFlowV6Packet => ", flowSeq: " + a.flowSequence
@@ -167,14 +162,20 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       case _ => ""
     }
 
+    val packetInfoStr = flowPacket.version.replaceAll("Packet", "-") + " length: " + flowPacket.length + flowSeq
+    val passedFlowsStr = flowPacket.flows.length + "/" + flowPacket.count + " passed"
+
+    val recvdFlows = flowPacket.flows.groupBy(_.version)
+
+    val recvdFlowsStr = recvdFlows.toList.sortBy(_._1).map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).mkString(", ")
+
     // log an elaborate string to loglevel info describing this packet.
     // Warning: can produce huge amounts of logs if written to disk.
-    val debugStr = flowPacket.version + " from " + flowPacket.senderIP + "/" + flowPacket.senderPort +
-      " (" + recvdFlowsStr + ", length: " + flowPacket.length + flowSeq + ")"
+    val debugStr = "\t" + packetInfoStr + "\t" + passedFlowsStr + "\t" + recvdFlowsStr
 
     // Sophisticated log-level hacking :<
     if (flowPacket.count != flowPacket.flows.length) error(debugStr)
-    else if (debugStr.matches("Template")) info(debugStr) else debug(debugStr)
+    else if (debugStr.contains("Template")) info(debugStr) else debug(debugStr)
 
     // count them to database
     backend.countDatagram(new DateTime, sender, flowPacket.version, flowPacket.flows.length)

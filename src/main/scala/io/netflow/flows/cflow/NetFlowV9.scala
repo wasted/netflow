@@ -62,7 +62,7 @@ object NetFlowV9Packet extends Logger {
       if (flowsetLength == 0) throw new IllegalFlowSetLengthException(sender)
       flowsetId match {
         case 0 => // template flowset - 0 NetFlow v9, 2 IPFIX
-          var templateOffset = packetOffset + 4
+          var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           debug("Template FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           do {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
@@ -80,7 +80,7 @@ object NetFlowV9Packet extends Logger {
 
         case 1 => // template flowset - 1 NetFlow v9, 3 IPFIX
           debug("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
-          var templateOffset = packetOffset + 4
+          var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           do {
             val scopeLen = buf.getInteger(templateOffset + 2, 2).toInt
             val optionLen = buf.getInteger(templateOffset + 4, 2).toInt
@@ -99,7 +99,7 @@ object NetFlowV9Packet extends Logger {
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           NetFlowV9Template(sender, flowsetId) match {
             case Some(tmpl) =>
-              var recordOffset = packetOffset + 4
+              var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
               while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
                 try {
                   val buffer = buf.slice(recordOffset, tmpl.length)
@@ -154,8 +154,7 @@ object NetFlowV9Data extends Logger {
     val getDsts = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
     flow.nextHop = buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)
 
-    val direction: Option[Int] = if (!template.hasDirection) None else
-      Some(buf.getUnsignedByte(template.typeOffset(DIRECTION)).toInt)
+    val direction = buf.getInteger(template, DIRECTION)
 
     flow.srcAddress = direction match {
       case Some(0) => getSrcs
@@ -182,7 +181,7 @@ object NetFlowV9Data extends Logger {
     }
 
     direction match {
-      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x)
+      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x.toInt, flow)
       case _ =>
     }
 
@@ -194,7 +193,7 @@ object NetFlowV9Data extends Logger {
 }
 
 case class NetFlowV9Data(sender: InetSocketAddress, length: Int, template: Int) extends NetFlowData[NetFlowV9Data] {
-  def version = "NetFlowV9Data Flow"
+  def version = "NetFlowV9Data " + template
 
   var extraFields = Map[String, Long]()
   override lazy val jsonExtra = extraFields.foldRight(", ") { (b, json) =>

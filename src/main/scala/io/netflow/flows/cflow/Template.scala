@@ -51,7 +51,7 @@ trait Template extends Flow[Template] {
   def sender: InetSocketAddress
   def map: HashMap[String, Int]
 
-  lazy val version = "NetFlowV" + versionNumber + " Template"
+  lazy val version = "NetFlowV" + versionNumber + "Template " + id
   lazy val stringMap = map.foldRight(HashMap[String, String]()) { (m, hm) => hm ++ Map(m._1 -> m._2.toString) }
   lazy val arrayMap: Array[String] = map.flatMap(b => Array(b._1, b._2.toString)).toArray
   lazy val objectMap: Array[Object] = Array(arrayMap: _*)

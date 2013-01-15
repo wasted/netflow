@@ -6,7 +6,7 @@ class FlowException(msg: String) extends Exception(msg)
 
 class InvalidFlowVersionException(src: InetSocketAddress, version: Int) extends FlowException("Version " + version + " from " + src.getAddress.getHostAddress + "/" + src.getPort)
 
-class IllegalFlowDirectionException(src: InetSocketAddress, direction: Int) extends FlowException("Direction " + direction + " from " + src.getAddress.getHostAddress + "/" + src.getPort)
+class IllegalFlowDirectionException(src: InetSocketAddress, direction: Int, fd: NetFlowData[_]) extends FlowException("Direction " + direction + " from " + src.getAddress.getHostAddress + "/" + src.getPort + ": " + fd.toString)
 
 class IncompleteFlowPacketHeaderException(src: InetSocketAddress) extends FlowException("From " + src.getAddress.getHostAddress + "/" + src.getPort)
 

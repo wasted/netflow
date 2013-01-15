@@ -182,7 +182,7 @@ object NetFlowV10Data extends Logger {
     }
 
     direction match {
-      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x)
+      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x, flow)
       case _ =>
     }
 
@@ -194,7 +194,7 @@ object NetFlowV10Data extends Logger {
 }
 
 case class NetFlowV10Data(sender: InetSocketAddress, length: Int, template: Int) extends NetFlowData[NetFlowV10Data] {
-  def version = "NetFlowV10Data Flow"
+  def version = "NetFlowV10Data"
 
   var extraFields = Map[String, Long]()
   override lazy val jsonExtra = extraFields.foldRight(", ") { (b, json) =>

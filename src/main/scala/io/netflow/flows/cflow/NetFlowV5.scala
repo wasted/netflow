@@ -158,7 +158,7 @@ object NetFlowV5 {
 }
 
 case class NetFlowV5(sender: InetSocketAddress, length: Int) extends NetFlowData[NetFlowV5] {
-  def version = "NetFlowV5 Flow"
+  def version = "NetFlowV5"
   var snmpInput: Int = -1
   var snmpOutput: Int = -1
   var srcMask: Int = -1

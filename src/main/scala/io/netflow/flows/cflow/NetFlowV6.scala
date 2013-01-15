@@ -158,7 +158,7 @@ object NetFlowV6 {
 }
 
 case class NetFlowV6(sender: InetSocketAddress, length: Int) extends NetFlowData[NetFlowV6] {
-  def version = "NetFlowV6 Flow"
+  def version = "NetFlowV6"
   var snmpInput: Int = -1
   var snmpOutput: Int = -1
   var srcMask: Int = -1
