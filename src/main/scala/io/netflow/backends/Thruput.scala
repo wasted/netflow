@@ -24,7 +24,7 @@ case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
     }
     val ip = """, "ip": """" + addr.getHostAddress + """""""
 
-    """{ "mime": "wasted/cflow", "body": """ + fd.json + ip + user + " }"
+    """{ "mime": "wasted/netflow", "body": """ + fd.json + ip + user + " }"
   }
 }
 trait Thruput {

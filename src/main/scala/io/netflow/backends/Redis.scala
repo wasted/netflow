@@ -18,7 +18,7 @@ class Redis(host: String, port: Int) extends Storage {
   def save(flowData: Map[(String, String), Long], sender: InetSocketAddress) {
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
-    val prefix = "cflow:" + senderIP + "/" + senderPort
+    val prefix = "netflow:" + senderIP + "/" + senderPort
 
     flowData foreach {
       case ((hash, name), value) => redisClient.hincrby(prefix + ":" + hash, name, value)
