@@ -111,7 +111,11 @@ case class NetFlowV7Packet(sender: InetSocketAddress, length: Int) extends FlowP
  * *-------*-----------*----------------------------------------------------------*
  * | 46-47 | flags     | Flags indicating various things (validity)               |
  * *-------*-----------*----------------------------------------------------------*
- * | 48-51 | pad2      | Unused (zero) bytes                                      |
+ * | 48-51 | router_sc | IP address of the router that is bypassed by the         |
+ * |       |           | Catalyst 5000 series switch. This is the same address    |
+ * |       |           | the router uses when usesit sends NetFlow export packets.|
+ * |       |           | This IP address is propagated to all switches bypassing  |
+ * |       |           | the router through the FCP protocol.                     |
  * *-------*-----------*----------------------------------------------------------*
  */
 
@@ -145,6 +149,7 @@ object NetFlowV7 {
     flow.srcMask = buf.getUnsignedByte(44).toInt
     flow.dstMask = buf.getUnsignedByte(45).toInt
     flow.flags = buf.getInteger(46, 2).toInt
+    flow.routerAddress = buf.getInetAddress(48, 4)
     flow
   }
 }
@@ -156,6 +161,7 @@ case class NetFlowV7(sender: InetSocketAddress, length: Int) extends NetFlowData
   var srcMask: Int = -1
   var dstMask: Int = -1
   var flags: Int = -1
+  var routerAddress = defaultAddr
 
   override lazy val jsonExtra =
     """,
