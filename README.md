@@ -48,7 +48,7 @@ Since we are using a Key-Value backed architecture, we are unable to "search" fo
 
 #### Finding the IP and Port
 
-If you do not know which IP your router uses to export NetFlows, just launch [netflow.io](http://wasted.github.com/netflow) in Loglevel Debug (default) and it will print "ignoring flow"-lines which will tell you about the IP/Port combination.
+If you do not know which IP your router uses to export NetFlows, just launch [netflow.io](http://netflow.io) in Loglevel Debug (default) and it will print "ignoring flow"-lines which will tell you about the IP/Port combination.
 
 If that does not work, use [tcpdump](http://www.tcpdump.org/tcpdump_man.html) to find out the IP and Port. If you are not familiar with tcpdump yet (you really should be!), check out our Troubleshooting Section below.
 
@@ -189,7 +189,7 @@ As a working example for Linux:
 
 If you suspect the UDP Packet coming from a whole network, you can tell tcpdump to filter for it.
 
-You might want to subtitute the default port 2250 with the port your [netflow.io](http://wasted.github.com/netflow) collector is running on.
+You might want to subtitute the default port 2250 with the port your [netflow.io](http://netflow.io) collector is running on.
 
 ```
 # tcpdump -i eth0 net 10.0.0.0/24 and port 2250
