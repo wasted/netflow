@@ -9,7 +9,7 @@ version := ("git describe --always"!!).trim
 
 scalaVersion := "2.10.0"
 
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-optimise")
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-optimise", "-Yinline-warnings")
 
 scalariformSettings
 
