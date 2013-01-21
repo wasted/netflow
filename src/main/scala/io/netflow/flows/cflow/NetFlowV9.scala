@@ -2,7 +2,7 @@ package io.netflow.flows.cflow
 
 import io.netflow.flows._
 import io.netflow.backends.Storage
-import io.wasted.util.Logger
+import io.wasted.util._
 
 import io.netty.buffer._
 import scala.language.postfixOps
@@ -140,6 +140,7 @@ case class NetFlowV9Packet(sender: InetSocketAddress, length: Int) extends FlowP
 
 object NetFlowV9Data extends Logger {
   import TemplateFields._
+  val parseExtraFields = Config.getBool("netflow.extraFields", true)
 
   /**
    * Parse a Version 9 Flow
@@ -199,8 +200,7 @@ object NetFlowV9Data extends Logger {
       case _ =>
     }
 
-    flow.extraFields = template.getExtraFields(buf)
-    println(flow.json)
+    if (parseExtraFields) flow.extraFields = template.getExtraFields(buf)
     flow
   }
 

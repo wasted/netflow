@@ -34,7 +34,6 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
           offset += 4
           idx += 1
         }
-        map ++= Map("length" -> dataFlowSetOffset)
       case 1 | 3 =>
         val scopeLen = buf.getInteger(2, 2).toInt
         val optionLen = buf.getInteger(4, 2).toInt
@@ -52,7 +51,6 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
           offset += 4
           curLen += 4
         }
-        println(map)
     }
     map ++= Map("length" -> dataFlowSetOffset)
     this(sender, templateId, map)
@@ -108,8 +106,7 @@ trait Template extends Flow[Template] {
   lazy val hasDstAS = hasField(DST_AS)
   lazy val hasDirection = hasField(DIRECTION)
 
-  // TODO Field-ID resolution has to be done through TemplateFields
-  //lazy val fields = map.keys.filter(_.startsWith("offset_")).map(b => TemplateFields(b.replaceAll("offset_", "")))
+  lazy val fields = map.keys.filter(_.startsWith("offset_")).map(b => TemplateFields(b.replace("offset_", "").toInt))
 
   private val excludeFields = List(
     SRC_AS, DST_AS, PROT, SRC_TOS,
@@ -122,7 +119,7 @@ trait Template extends Flow[Template] {
 
   lazy val extraFields = map.keys
     .filter(_.startsWith("offset_"))
-    .flatMap(b => Tryo(TemplateFields(b.replaceAll("offset_", "").toInt)))
+    .flatMap(b => Tryo(TemplateFields(b.replace("offset_", "").toInt)))
     .filterNot(excludeFields.contains)
 
   def getExtraFields(buf: ByteBuf): Map[String, Long] =
