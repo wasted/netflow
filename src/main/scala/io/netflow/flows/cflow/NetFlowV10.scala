@@ -1,6 +1,7 @@
 package io.netflow.flows.cflow
 
 import io.netflow.flows._
+import io.netflow.backends.Storage
 import io.wasted.util.Logger
 
 import io.netty.buffer._
@@ -37,16 +38,17 @@ object NetFlowV10Packet extends Logger {
    *
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
+   * @param backend Storage backend to save templates to
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): Try[NetFlowV10Packet] = Try[NetFlowV10Packet] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, backend: Storage): Try[NetFlowV10Packet] = Try[NetFlowV10Packet] {
     val version = buf.getInteger(0, 2).toInt
-    if (version != 10) throw new InvalidFlowVersionException(sender, version)
+    if (version != 10) return Failure(new InvalidFlowVersionException(version))
     val packet = NetFlowV10Packet(sender, buf.readableBytes)
 
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
     if (buf.readableBytes < headerSize)
-      throw new IncompleteFlowPacketHeaderException(sender)
+      return Failure(new IncompleteFlowPacketHeaderException)
 
     packet.count = buf.getInteger(2, 2).toInt
     packet.uptime = buf.getInteger(4, 4) / 1000
@@ -56,62 +58,60 @@ object NetFlowV10Packet extends Logger {
 
     var flowsetCounter = 0
     var packetOffset = headerSize
-    while (flowsetCounter < packet.count && packetOffset < buf.readableBytes) {
+    while (flowsetCounter < packet.count && packetOffset < packet.length) {
       val flowsetId = buf.getInteger(packetOffset, 2).toInt
       val flowsetLength = buf.getInteger(packetOffset + 2, 2).toInt
-      if (flowsetLength == 0) throw new IllegalFlowSetLengthException(sender)
+      if (flowsetLength == 0) return Failure(new IllegalFlowSetLengthException)
+      if (packetOffset + flowsetLength > packet.length) return Failure(new ShortFlowPacketException)
+
       flowsetId match {
-        case 2 => // template flowset - 0 NetFlow V10, 2 IPFIX
-          var templateOffset = packetOffset + 4
+        case 2 => // template flowset - 0 NetFlow v9, 2 IPFIX
+          var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           debug("Template FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           do {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
             val templateSize = fieldCount * 4 + 4
-            try {
-              val buffer = buf.slice(templateOffset, templateSize)
-              NetFlowV10Template(sender, buffer, flowsetId).map(packet.flows :+= _)
-              flowsetCounter += 1
-            } catch {
-              case e: IndexOutOfBoundsException => error("Short flow received from " + senderIP + "/" + senderPort)
-              case e: Throwable => warn(e.toString, e); debug(e.toString, e)
+            val buffer = buf.slice(templateOffset, templateSize)
+            NetFlowV10Template(sender, buffer, flowsetId) match {
+              case Success(tmpl) =>
+                backend.save(tmpl)
+                packet.flows :+= tmpl
+              case Failure(e) => warn(e.toString)
             }
+            flowsetCounter += 1
             templateOffset += templateSize
           } while (templateOffset - packetOffset < flowsetLength)
 
-        case 3 => // template flowset - 1 NetFlow V10, 3 IPFIX
-          debug("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
-          var templateOffset = packetOffset + 4
+        case 3 => // template flowset - 1 NetFlow v9, 3 IPFIX
+          error("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
+          var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           do {
             val scopeLen = buf.getInteger(templateOffset + 2, 2).toInt
             val optionLen = buf.getInteger(templateOffset + 4, 2).toInt
             val templateSize = scopeLen + optionLen + 6
-            try {
-              val buffer = buf.slice(templateOffset, templateSize)
-              NetFlowV10Template(sender, buffer, flowsetId).map(packet.flows :+= _)
-              flowsetCounter += 1
-            } catch {
-              case e: IndexOutOfBoundsException => error("Short flow received from " + senderIP + "/" + senderPort)
-              case e: Throwable => warn(e.toString, e); debug(e.toString, e)
+            val buffer = buf.slice(templateOffset, templateSize)
+            NetFlowV10Template(sender, buffer, flowsetId) match {
+              case Success(tmpl) =>
+                backend.save(tmpl)
+                packet.flows :+= tmpl
+              case Failure(e) => warn(e.toString)
             }
+            flowsetCounter += 1
             templateOffset += templateSize
           } while (templateOffset - packetOffset < flowsetLength)
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           NetFlowV10Template(sender, flowsetId) match {
             case Some(tmpl) =>
-              var recordOffset = packetOffset + 4
-              while (recordOffset + tmpl.length <= packetOffset + flowsetLength) {
-                try {
-                  val buffer = buf.slice(recordOffset, tmpl.length)
-                  NetFlowV10Data(sender, buffer, tmpl) match {
-                    case Success(flow) => packet.flows :+= flow
-                    case Failure(e) => warn(e.toString)
-                  }
-                  flowsetCounter += 1
-                } catch {
-                  case e: IndexOutOfBoundsException => error("Short flow received from " + senderIP + "/" + senderPort)
-                  case e: Throwable => warn(e.toString, e); e.printStackTrace()
+              if (tmpl.flowsetId > 0) println("option flow!")
+              var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
+              while (recordOffset - packetOffset + tmpl.length <= flowsetLength) {
+                val buffer = buf.slice(recordOffset, tmpl.length)
+                NetFlowV10Data(sender, buffer, tmpl) match {
+                  case Success(flow) => packet.flows :+= flow
+                  case Failure(e) => warn(e.toString)
                 }
+                flowsetCounter += 1
                 recordOffset += tmpl.length
               }
             case _ =>
@@ -182,7 +182,7 @@ object NetFlowV10Data extends Logger {
     }
 
     direction match {
-      case Some(x) if x > 1 => throw new IllegalFlowDirectionException(sender, x, flow)
+      case Some(x) if x > 1 => return Failure(new IllegalFlowDirectionException(x, flow))
       case _ =>
     }
 

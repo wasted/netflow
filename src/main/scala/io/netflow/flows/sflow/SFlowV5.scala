@@ -5,7 +5,7 @@ import io.wasted.util.Logger
 
 import io.netty.buffer._
 import java.net.InetSocketAddress
-import scala.util.Try
+import scala.util.{ Try, Failure }
 
 /**
  * sFlow Version 5 Packet
@@ -63,13 +63,13 @@ object SFlowV5Packet extends Logger {
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf): Try[SFlowV5Packet] = Try[SFlowV5Packet] {
     val version = buf.getInteger(0, 4).toInt
-    if (version != 5) throw new InvalidFlowVersionException(sender, version)
+    if (version != 5) return Failure(new InvalidFlowVersionException(version))
 
     buf.readerIndex(0)
     val packet = SFlowV5Packet(sender, buf.readableBytes)
 
     if (packet.length < 28)
-      throw new IncompleteFlowPacketHeaderException(sender)
+      return Failure(new IncompleteFlowPacketHeaderException)
 
     val agentIPversion = if (buf.getInteger(4, 4) == 1L) 4 else 6
     val agentLength = if (agentIPversion == 4) 4 else 16

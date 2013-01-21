@@ -52,26 +52,26 @@ trait NetFlowData[T] extends Flow[T] {
   private def dstAddressIP() = dstAddress.getHostAddress
   private def nextHopIP() = nextHop.getHostAddress
 
-  protected def jsonExtra = ""
+  protected def jsonExtra = "{}"
   lazy val json = """
-    {
-      "flowVersion": "%s",
-      "flowSender": "%s/%s",
-      "srcPort": %s,
-      "dstPort": %s,
-      "srcAddress": "%s",
-      "dstAddress": "%s",
-      "srcAS": %s,
-      "dstAS": %s,
-      "nextHop": "%s",
-      "proto": %s,
-      "tos": %s,
-      "pkts": %s,
-      "bytes": %s,
-      "start": %s,
-      "stop": %s,
-      "tcpflags": %s %s
-    }""".trim().format(
+{
+  "FlowVersion": "%s",
+  "FlowSender": "%s/%s",
+  "SrcPort": %s,
+  "DstPort": %s,
+  "SrcAddress": "%s",
+  "DstAddress": "%s",
+  "SrcAS": %s,
+  "DstAS": %s,
+  "NextHop": "%s",
+  "Proto": %s,
+  "Tos": %s,
+  "Pkts": %s,
+  "Bytes": %s,
+  "Start": %s,
+  "Stop": %s,
+  "TCPFlags": %s%s
+}""".format(
     version, senderIP, senderPort, srcPort, dstPort, srcAddressIP, dstAddressIP,
     srcAS, dstAS, nextHopIP, proto, tos, pkts, bytes, start, stop, tcpflags, jsonExtra)
 
@@ -80,3 +80,4 @@ trait NetFlowData[T] extends Flow[T] {
     version, senderIP, senderPort, srcAddress.getHostAddress, srcPort, srcAS,
     nextHop.getHostAddress, dstAddress.getHostAddress, dstPort, dstAS, proto, tos, pkts, bytes, stringExtra)
 }
+

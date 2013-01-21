@@ -2,20 +2,24 @@ package io.netflow.flows
 
 import java.net.InetSocketAddress
 
-class FlowException(msg: String) extends Exception(msg)
+// Since these expected errors are quite easy to distinguish and locate, we don't need expensive stacktraces
+class FlowException(msg: String) extends Exception(msg) with util.control.NoStackTrace
 
-class InvalidFlowVersionException(src: InetSocketAddress, version: Int) extends FlowException("Version " + version + " from " + src.getAddress.getHostAddress + "/" + src.getPort)
+class InvalidFlowVersionException(version: Int) extends FlowException("Version " + version)
 
-class IllegalFlowDirectionException(src: InetSocketAddress, direction: Int, fd: NetFlowData[_]) extends FlowException("Direction " + direction + " from " + src.getAddress.getHostAddress + "/" + src.getPort + ": " + fd.toString)
+class IllegalFlowDirectionException(direction: Int, fd: NetFlowData[_]) extends FlowException("Direction " + direction + ": " + fd.toString)
 
-class IncompleteFlowPacketHeaderException(src: InetSocketAddress) extends FlowException("From " + src.getAddress.getHostAddress + "/" + src.getPort)
+class IncompleteFlowPacketHeaderException extends FlowException("")
 
-class CorruptFlowPacketException(src: InetSocketAddress) extends FlowException("From " + src.getAddress.getHostAddress + "/" + src.getPort)
+class CorruptFlowPacketException extends FlowException("")
 
-class CorruptFlowTemplateException(src: InetSocketAddress, template: Int) extends FlowException("From " + src.getAddress.getHostAddress + "/" + src.getPort)
+class CorruptFlowTemplateException(template: Int) extends FlowException("TemplateId " + template)
 
-class IllegalFlowSetLengthException(src: InetSocketAddress) extends FlowException("Length (0) from " + src.getAddress.getHostAddress + "/" + src.getPort)
+class IllegalTemplateIdException(template: Int) extends FlowException("TemplateId " + template)
 
-class IllegalTemplateIdException(src: InetSocketAddress, template: Int) extends FlowException("TemplateId " + template + " from " + src.getAddress.getHostAddress + "/" + src.getPort)
+class UnhandledFlowPacketException extends FlowException("")
 
-class UnhandledFlowPacketException(src: InetSocketAddress) extends FlowException("From " + src.getAddress.getHostAddress + "/" + src.getPort)
+class IllegalFlowSetLengthException extends FlowException("FlowSetLength (0)")
+
+class ShortFlowPacketException extends FlowException("")
+

@@ -21,9 +21,6 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   protected var thruputPrefixes: List[InetPrefix] = List()
   private var senderPrefixes: List[InetPrefix] = List()
 
-  // this is a temporary cache which will be flushed
-  private var templateCache: Map[Int, cflow.Template] = Map()
-
   private val accountPerIP = false
   private val accountPerIPProto = false
   private var cancellable = Shutdown.schedule()
@@ -49,7 +46,6 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       if (repoll) {
         thruputPrefixes = backend.getThruputPrefixes(sender)
         senderPrefixes = backend.getPrefixes(sender)
-        templateCache = Map()
         lastPoll = new DateTime
       }
       schedule()
@@ -91,7 +87,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
 
-  private val unhandledException = Failure(new UnhandledFlowPacketException(sender))
+  private val unhandledException = Failure(new UnhandledFlowPacketException)
 
   private def handleSFlow(buf: ByteBuf): Try[sflow.SFlowV5Packet] = {
     if (buf.readableBytes < 28) return unhandledException
@@ -109,8 +105,8 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       case Some(5) => cflow.NetFlowV5Packet(sender, buf)
       case Some(6) => cflow.NetFlowV6Packet(sender, buf)
       case Some(7) => cflow.NetFlowV7Packet(sender, buf)
-      case Some(9) => cflow.NetFlowV9Packet(sender, buf)
-      case Some(10) => cflow.NetFlowV10Packet(sender, buf)
+      case Some(9) => cflow.NetFlowV9Packet(sender, buf, backend)
+      case Some(10) => cflow.NetFlowV10Packet(sender, buf, backend)
       case _ => unhandledException
     }
 
@@ -118,8 +114,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     val it1 = flowPacket.flows.iterator
     while (it1.hasNext) it1.next() match {
       case tmpl: cflow.Template =>
-        templateCache ++= Map(tmpl.id -> tmpl)
-        backend.save(tmpl)
+      // TODO Report it through thruput?
 
       /* Handle NetFlowData */
       case flow: NetFlowData[_] =>

@@ -4,7 +4,7 @@ import io.netflow.flows._
 
 import io.netty.buffer._
 import java.net.InetSocketAddress
-import scala.util.Try
+import scala.util.{ Try, Failure }
 
 /**
  * NetFlow Version 1
@@ -36,12 +36,12 @@ object NetFlowV1Packet {
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf): Try[NetFlowV1Packet] = Try[NetFlowV1Packet] {
     val version = buf.getInteger(0, 2).toInt
-    if (version != 1) throw new InvalidFlowVersionException(sender, version)
+    if (version != 1) return Failure(new InvalidFlowVersionException(version))
 
     val packet = NetFlowV1Packet(sender, buf.readableBytes)
     packet.count = buf.getInteger(2, 2).toInt
     if (packet.count <= 0 || buf.readableBytes < headerSize + packet.count * flowSize)
-      throw new CorruptFlowPacketException(sender)
+      return Failure(new CorruptFlowPacketException)
 
     packet.uptime = buf.getInteger(4, 4) / 1000
     packet.date = new org.joda.time.DateTime(buf.getInteger(8, 4) * 1000)

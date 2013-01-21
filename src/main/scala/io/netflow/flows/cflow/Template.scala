@@ -9,60 +9,97 @@ import io.netty.buffer._
 import scala.collection.immutable.HashMap
 
 import java.net.InetSocketAddress
-import scala.util.Try
+import scala.util.{ Try, Failure }
 
 abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
 
   def apply(sender: InetSocketAddress, buf: ByteBuf, flowsetId: Int): Try[T] = Try[T] {
     val templateId = buf.getUnsignedShort(0)
     if (!(templateId < 0 || templateId > 255)) // 0-255 reserved for flowset ID
-      throw new IllegalTemplateIdException(sender, templateId)
+      return Failure(new IllegalTemplateIdException(templateId))
 
-    var map = HashMap[String, Int]()
-    val fieldCount = buf.getUnsignedShort(2).toInt
-    var offset = 4
+    var map = HashMap[String, AnyVal]("flowsetId" -> flowsetId)
     var idx, dataFlowSetOffset = 0
-    while (idx < fieldCount) {
-      val typeName = buf.getUnsignedShort(offset)
-      val typeLen = buf.getUnsignedShort(offset + 2)
-      if (typeName < 93 && typeName > 0) {
-        map ++= Map("offset_" + typeName -> dataFlowSetOffset, "length_" + typeName -> typeLen)
-      }
-      dataFlowSetOffset += typeLen
-      offset += 4
-      idx += 1
+    flowsetId match {
+      case 0 | 2 =>
+        val fieldCount = buf.getUnsignedShort(2).toInt
+        var offset = 4
+        while (idx < fieldCount) {
+          val typeName = buf.getUnsignedShort(offset)
+          val typeLen = buf.getUnsignedShort(offset + 2)
+          if (typeName < 93 && typeName > 0) {
+            map ++= Map("offset_" + typeName -> dataFlowSetOffset, "length_" + typeName -> typeLen)
+          }
+          dataFlowSetOffset += typeLen
+          offset += 4
+          idx += 1
+        }
+        map ++= Map("length" -> dataFlowSetOffset)
+      case 1 | 3 =>
+        val scopeLen = buf.getInteger(2, 2).toInt
+        val optionLen = buf.getInteger(4, 2).toInt
+        var offset = 6
+        var curLen = 0
+        println("offset 6, scopeLen: %s, optionLen: %s".format(scopeLen, optionLen))
+        while (curLen < scopeLen + optionLen) {
+          val typeName = buf.getUnsignedShort(offset)
+          map ++= Map("scope_" + typeName -> (curLen < scopeLen))
+          val typeLen = buf.getUnsignedShort(offset + 2)
+          if (typeName < 93 && typeName > 0) {
+            map ++= Map("offset_" + typeName -> dataFlowSetOffset, "length_" + typeName -> typeLen)
+          }
+          dataFlowSetOffset += typeLen
+          offset += 4
+          curLen += 4
+        }
+        println(map)
     }
-    map ++= Map("length" -> dataFlowSetOffset, "flowsetId" -> flowsetId)
+    map ++= Map("length" -> dataFlowSetOffset)
     this(sender, templateId, map)
   }
 
   def apply(sender: InetSocketAddress, id: Int): Option[T] =
     Service.backend.ciscoTemplateFields(sender, id) match {
-      case Some(fields: HashMap[String, Int]) => Some(this(sender, id, fields))
+      case Some(fields: HashMap[String, AnyVal]) => Some(this(sender, id, fields))
       case None => None
     }
 
-  def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, Int]): T
+  def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, AnyVal]): T
 }
 
 trait Template extends Flow[Template] {
   def versionNumber: Int
   def id: Int
   def sender: InetSocketAddress
-  def map: HashMap[String, Int]
+  def map: HashMap[String, AnyVal]
 
   lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + id
   lazy val stringMap = map.foldRight(HashMap[String, String]()) { (m, hm) => hm ++ Map(m._1 -> m._2.toString) }
   lazy val arrayMap: Array[String] = map.flatMap(b => Array(b._1, b._2.toString)).toArray
   lazy val objectMap: Array[Object] = Array(arrayMap: _*)
 
-  def length() = map.get("length") getOrElse -1
-  def flowsetId() = map.get("flowsetId") getOrElse -1
+  lazy val length: Int = map.get("length") match {
+    case Some(len: Int) => len
+    case _ => -1
+  }
+
+  lazy val flowsetId: Int = map.get("flowsetId") match {
+    case Some(flowsetId: Int) => flowsetId
+    case _ => -1
+  }
 
   lazy val isOptionTemplate = flowsetId == 1 || flowsetId == 3
 
-  def typeOffset(typeName: TemplateFields.Value): Int = map.get("offset_" + typeName.id) getOrElse -1
-  def typeLen(typeName: TemplateFields.Value): Int = map.get("length_" + typeName.id) getOrElse 0
+  def typeOffset(typeName: TemplateFields.Value): Int = map.get("offset_" + typeName.id) match {
+    case Some(offset: Int) => offset
+    case _ => -1
+  }
+
+  def typeLen(typeName: TemplateFields.Value): Int = map.get("length_" + typeName.id) match {
+    case Some(len: Int) => len
+    case _ => 0
+  }
+
   def key() = (sender, id)
   def hasField(typeName: TemplateFields.Value): Boolean = map.contains("offset_" + typeName.id)
 
@@ -72,25 +109,47 @@ trait Template extends Flow[Template] {
   lazy val hasDirection = hasField(DIRECTION)
 
   // TODO Field-ID resolution has to be done through TemplateFields
-  lazy val fields = map.keys.filter(_.startsWith("offset_")).map(_.replaceAll("offset_", ""))
+  //lazy val fields = map.keys.filter(_.startsWith("offset_")).map(b => TemplateFields(b.replaceAll("offset_", "")))
+
+  private val excludeFields = List(
+    SRC_AS, DST_AS, PROT, SRC_TOS,
+    L4_SRC_PORT, L4_DST_PORT,
+    IPV4_SRC_ADDR, IPV4_DST_ADDR, IPV4_NEXT_HOP,
+    IPV6_SRC_ADDR, IPV6_DST_ADDR, IPV6_NEXT_HOP,
+    DIRECTION, InPKTS, OutPKTS, InBYTES, OutBYTES,
+    FIRST_SWITCHED, LAST_SWITCHED, TCP_FLAGS // SNMP_INPUT, SNMP_OUTPUT, SRC_MASK, DST_MASK
+    )
+
+  lazy val extraFields = map.keys
+    .filter(_.startsWith("offset_"))
+    .flatMap(b => Tryo(TemplateFields(b.replaceAll("offset_", "").toInt)))
+    .filterNot(excludeFields.contains)
+
+  def getExtraFields(buf: ByteBuf): Map[String, Long] =
+    extraFields.foldRight(Map[String, Long]()) { (field, map) =>
+      buf.getInteger(this, field) match {
+        case Some(v) => map ++ Map(field.toString -> v)
+        case _ => map
+      }
+    }
 
   // TODO implement JSON serialization
   lazy val json = ""
 }
 
-case class NetFlowV9Template(id: Int, sender: InetSocketAddress, map: HashMap[String, Int]) extends Template {
+case class NetFlowV9Template(id: Int, sender: InetSocketAddress, map: HashMap[String, AnyVal]) extends Template {
   val versionNumber = 9
 }
 
-case class NetFlowV10Template(id: Int, sender: InetSocketAddress, map: HashMap[String, Int]) extends Template {
+case class NetFlowV10Template(id: Int, sender: InetSocketAddress, map: HashMap[String, AnyVal]) extends Template {
   val versionNumber = 10
 }
 
 object NetFlowV9Template extends TemplateMeta[NetFlowV9Template] {
-  def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, Int]) = NetFlowV9Template(id, sender, map)
+  def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, AnyVal]) = NetFlowV9Template(id, sender, map)
 }
 
 object NetFlowV10Template extends TemplateMeta[NetFlowV10Template] {
-  def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, Int]) = NetFlowV10Template(id, sender, map)
+  def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, AnyVal]) = NetFlowV10Template(id, sender, map)
 }
 
