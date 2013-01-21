@@ -189,10 +189,10 @@ As a working example for Linux:
 
 If you suspect the UDP Packet coming from a whole network, you can tell tcpdump to filter for it.
 
-You might want to subtitute the default port 2250 with the port your [netflow.io](http://netflow.io) collector is running on.
+You might want to subtitute the default port 2055 with the port your [netflow.io](http://netflow.io) collector is running on.
 
 ```
-# tcpdump -i eth0 net 10.0.0.0/24 and port 2250
+# tcpdump -i eth0 net 10.0.0.0/24 and port 2055
 ```
 
 Just grab the source-ip and port where packets are coming from and add it into the database as formatted **IP/Port**.
