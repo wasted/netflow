@@ -169,7 +169,11 @@ Mirror your upstream port to a FreeBSD machine which does the actual NetFlow col
 
 #### Q7: Is it stable and ready for production?
 
-Our patchlevel internally used might be production level, but we are heavily developing towards our first stable public release!
+Not yet, but we are heavily developing towards our first stable public release!
+
+#### Q8: Why did you use separate implementations for each NetFlow version?
+
+We had it implemented into two classes before (LegacyFlow and TemplateFlow), but we were unhappy with "per-flow-version" debugging. We believe that handling each flow separately gives us more maintainability in the end than having lots of dispatching in between.
 
 ## Troubleshooting
 
