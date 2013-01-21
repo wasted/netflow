@@ -53,8 +53,7 @@ trait NetFlowData[T] extends Flow[T] {
   private def nextHopIP() = nextHop.getHostAddress
 
   protected def jsonExtra = "{}"
-  lazy val json = """
-{
+  lazy val json = """{
   "FlowVersion": "%s",
   "FlowSender": "%s/%s",
   "SrcPort": %s,

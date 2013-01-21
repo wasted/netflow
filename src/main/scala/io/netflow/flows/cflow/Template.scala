@@ -39,7 +39,6 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
         val optionLen = buf.getInteger(4, 2).toInt
         var offset = 6
         var curLen = 0
-        println("offset 6, scopeLen: %s, optionLen: %s".format(scopeLen, optionLen))
         while (curLen < scopeLen + optionLen) {
           val typeName = buf.getUnsignedShort(offset)
           map ++= Map("scope_" + typeName -> (curLen < scopeLen))
@@ -130,8 +129,10 @@ trait Template extends Flow[Template] {
       }
     }
 
-  // TODO implement JSON serialization
-  lazy val json = ""
+  lazy val json = """{
+  "TemplateId": %s,
+  "Fields": %s
+}""".format(id, map.map(b => "\"" + b._1 + "\": " + b._2).mkString(",\n  "))
 }
 
 case class NetFlowV9Template(id: Int, sender: InetSocketAddress, map: HashMap[String, AnyVal]) extends Template {

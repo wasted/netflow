@@ -150,7 +150,7 @@ object NetFlowV9Data extends Logger {
    * @param template NetFlow Template for this Flow
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf, template: NetFlowV9Template, uptime: Long): Try[NetFlowV9Data] = Try[NetFlowV9Data] {
-    val flow = new NetFlowV9Data(sender, buf.readableBytes(), template.id)
+    val flow = NetFlowV9Data(sender, buf.readableBytes(), template.id)
     flow.srcPort = buf.getInteger(template, L4_SRC_PORT).get.toInt
     flow.dstPort = buf.getInteger(template, L4_DST_PORT).get.toInt
 
@@ -206,7 +206,7 @@ object NetFlowV9Data extends Logger {
 
 }
 
-class NetFlowV9Data(val sender: InetSocketAddress, val length: Int, val template: Int) extends NetFlowData[NetFlowV9Data] {
+case class NetFlowV9Data(val sender: InetSocketAddress, val length: Int, val template: Int) extends NetFlowData[NetFlowV9Data] {
   def version = "NetFlowV9Data " + template
 
   var extraFields = Map[String, Long]()
@@ -229,7 +229,6 @@ object NetFlowV9Option extends Logger {
     val flow = NetFlowV9Option(sender, buf.readableBytes(), template.id)
 
     flow.extraFields = template.getExtraFields(buf)
-    println(flow.json)
     flow
   }
 
