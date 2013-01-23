@@ -5,7 +5,6 @@ import io.netflow.backends._
 import io.netflow.netty._
 import io.wasted.util._
 
-import scala.util.{ Try, Success, Failure }
 import java.net.{ InetAddress, InetSocketAddress }
 
 import io.netty.buffer._
@@ -13,6 +12,8 @@ import io.netty.channel.socket.DatagramPacket
 
 import org.joda.time.DateTime
 import akka.actor._
+import scala.util.{ Try, Success, Failure }
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -61,24 +62,36 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       io.netflow.Service.removeActorFor(sender)
       backend.stop()
       context.stop(self)
+    // We save FlowPackets in the thread-safety of an actor
+    case fp: FlowPacket =>
+      Shutdown.avoid()
+      save(fp)
     case NetFlow(data: ByteBuf) =>
-      Shutdown.avoid()
-      handleCisco(data) match {
-        case Success(flowPacket) => save(flowPacket)
-        case Failure(e) =>
-          info("Unsupported NetFlow Packet received: %s", e)
-          backend.countDatagram(new DateTime, sender, "bad:netflow")
+      // Thread-off with a parser
+      Future {
+        Shutdown.avoid()
+        handleCisco(data) match {
+          // We re-reschedule the save to be thread-safe
+          case Success(flowPacket) => self ! flowPacket
+          case Failure(e) =>
+            info("Unsupported NetFlow Packet received: %s", e)
+            backend.countDatagram(new DateTime, sender, "bad:netflow")
+        }
+        data.free()
       }
-      data.free()
     case SFlow(data: ByteBuf) =>
-      Shutdown.avoid()
-      handleSFlow(data) match {
-        case Success(flowPacket) => save(flowPacket)
-        case Failure(e) =>
-          info("Unsupported sFlow Packet received: %s", e)
-          backend.countDatagram(new DateTime, sender, "bad:sflow")
+      // Thread-off with a parser
+      Future {
+        Shutdown.avoid()
+        handleSFlow(data) match {
+          // We re-reschedule the save to be thread-safe
+          case Success(flowPacket) => self ! flowPacket
+          case Failure(e) =>
+            info("Unsupported sFlow Packet received: %s", e)
+            backend.countDatagram(new DateTime, sender, "bad:sflow")
+        }
+        data.free()
       }
-      data.free()
     case Flush =>
       Flush.action()
   }
