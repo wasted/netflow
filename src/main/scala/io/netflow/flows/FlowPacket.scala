@@ -53,26 +53,23 @@ trait NetFlowData[T] extends Flow[T] {
   private def nextHopIP() = nextHop.getHostAddress
 
   protected def jsonExtra = "{}"
-  lazy val json = """{
-  "FlowVersion": "%s",
-  "FlowSender": "%s/%s",
-  "SrcPort": %s,
-  "DstPort": %s,
-  "SrcAddress": "%s",
-  "DstAddress": "%s",
-  "SrcAS": %s,
-  "DstAS": %s,
-  "NextHop": "%s",
-  "Proto": %s,
-  "Tos": %s,
-  "Pkts": %s,
-  "Bytes": %s,
-  "Start": %s,
-  "Stop": %s,
-  "TCPFlags": %s%s
-}""".format(
-    version, senderIP, senderPort, srcPort, dstPort, srcAddressIP, dstAddressIP,
-    srcAS, dstAS, nextHopIP, proto, tos, pkts, bytes, start, stop, tcpflags, jsonExtra)
+  lazy val json = "{" +
+    "\"FlowVersion\": \"" + version + "\", " +
+    "\"FlowSender\": \"" + senderIP + "/" + senderPort + "\", " +
+    "\"SrcPort\": " + srcPort + ", " +
+    "\"DstPort\": " + dstPort + ", " +
+    "\"SrcAddress\": \"" + srcAddressIP + "\", " +
+    "\"DstAddress\": \"" + dstAddressIP + "\", " +
+    "\"SrcAS\": " + srcAS + ", " +
+    "\"DstAS\": " + dstAS + ", " +
+    "\"NextHop\": \"" + nextHopIP + "\", " +
+    "\"Proto\": " + proto + ", " +
+    "\"Tos\": " + tos + ", " +
+    "\"Pkts\": " + pkts + ", " +
+    "\"Bytes\": " + bytes + ", " +
+    "\"Start\": " + start + ", " +
+    "\"Stop\": " + stop + ", " +
+    "\"TCPFlags\": " + tcpflags + jsonExtra + "}"
 
   protected def stringExtra = ""
   override def toString() = "%s from %s/%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(

@@ -132,7 +132,7 @@ trait Template extends Flow[Template] {
   lazy val json = """{
   "TemplateId": %s,
   "Fields": %s
-}""".format(id, map.map(b => "\"" + b._1 + "\": " + b._2).mkString(",\n  "))
+}""".format(id, map.map(b => "\"" + b._1 + "\": " + b._2).mkString(", "))
 }
 
 case class NetFlowV9Template(id: Int, sender: InetSocketAddress, map: HashMap[String, AnyVal]) extends Template {
