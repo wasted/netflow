@@ -33,10 +33,13 @@ trait Thruput {
 
   protected val thruputHttpClient = HttpClient(2)
 
-  protected val thruput = (sender: InetSocketAddress, flow: Flow[_], prefix: InetPrefix, addr: InetAddress) =>
-    backend.getThruputRecipients(sender, prefix).groupBy(_.platform) foreach { platformRcpts =>
+  protected val thruput = (sender: InetSocketAddress, flow: Flow[_], prefix: InetPrefix, addr: InetAddress) => {
+    val iter = backend.getThruputRecipients(sender, prefix).groupBy(_.platform).iterator
+    while (iter.hasNext) {
+      val platformRcpts = iter.next()
       val rcpt = platformRcpts._1
       Tryo(thruputHttpClient.thruput(rcpt.url, rcpt.auth, rcpt.sign, rcpt.msg(flow, addr, platformRcpts._2.flatMap(_.toUser))))
     }
+  }
 
 }

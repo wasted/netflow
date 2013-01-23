@@ -11,17 +11,18 @@ import scala.collection.JavaConversions._
 import io.netty.util.CharsetUtil
 import java.util.UUID
 import java.net.InetSocketAddress
+import java.util.concurrent.atomic.AtomicLong
 
 class Redis(host: String, port: Int) extends Storage {
   private val redisClient = new RedisClient(host, port)
 
-  def save(flowData: Map[(String, String), Long], sender: InetSocketAddress) {
+  def save(flowData: Map[(String, String), AtomicLong], sender: InetSocketAddress) {
     val senderIP = sender.getAddress.getHostAddress
     val senderPort = sender.getPort
     val prefix = "netflow:" + senderIP + "/" + senderPort
 
     flowData foreach {
-      case ((hash, name), value) => redisClient.hincrby(prefix + ":" + hash, name, value)
+      case ((hash, name), value) => redisClient.hincrby(prefix + ":" + hash, name, value.get)
     }
   }
 

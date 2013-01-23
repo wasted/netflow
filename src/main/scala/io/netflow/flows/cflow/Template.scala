@@ -12,6 +12,10 @@ import java.net.InetSocketAddress
 import scala.util.{ Try, Failure }
 
 abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
+  private val cache = scala.collection.concurrent.TrieMap[(InetSocketAddress, Int), T]()
+  def clear(sender: InetSocketAddress) {
+    cache.keys.filter(_._1 == sender).foreach(cache.remove)
+  }
 
   def apply(sender: InetSocketAddress, buf: ByteBuf, flowsetId: Int): Try[T] = Try[T] {
     val templateId = buf.getUnsignedShort(0)
@@ -52,13 +56,19 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
         }
     }
     map ++= Map("length" -> dataFlowSetOffset)
-    this(sender, templateId, map)
+    val tmpl: T = this(sender, templateId, map)
+    val key = (sender, templateId)
+    cache.remove(key)
+    cache.putIfAbsent(key, tmpl)
+    tmpl
   }
 
   def apply(sender: InetSocketAddress, id: Int): Option[T] =
-    Service.backend.ciscoTemplateFields(sender, id) match {
-      case Some(fields: HashMap[String, AnyVal]) => Some(this(sender, id, fields))
-      case None => None
+    cache.get((sender, id)) orElse {
+      Service.backend.ciscoTemplateFields(sender, id) match {
+        case Some(fields: HashMap[String, AnyVal]) => Some(this(sender, id, fields))
+        case None => None
+      }
     }
 
   def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, AnyVal]): T

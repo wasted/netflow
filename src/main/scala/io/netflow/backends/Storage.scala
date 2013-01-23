@@ -6,6 +6,7 @@ import io.wasted.util._
 import scala.collection.immutable.HashMap
 import scala.util.{ Try, Success, Failure }
 import java.net.InetSocketAddress
+import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
 
@@ -25,7 +26,7 @@ object Storage extends Logger {
 }
 
 trait Storage extends Logger {
-  def save(flowData: Map[(String, String), Long], sender: InetSocketAddress): Unit
+  def save(flowData: Map[(String, String), AtomicLong], sender: InetSocketAddress): Unit
   def save(template: cflow.Template): Unit
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]
 

@@ -6,6 +6,7 @@ import io.netflow.netty._
 import io.wasted.util._
 
 import java.net.{ InetAddress, InetSocketAddress }
+import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
 import akka.actor._
@@ -15,21 +16,27 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with Thruput with Logger {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
-  protected var thruputPrefixes: List[InetPrefix] = List()
   private var senderPrefixes: List[InetPrefix] = List()
 
   private val accountPerIP = false
   private val accountPerIPProto = false
   private var cancellable = Shutdown.schedule()
 
-  private var counters = Map[(String, String), Long]()
-  private def hincrBy(str1: String, str2: String, inc: Long) =
-    counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
+  private var counters = scala.collection.concurrent.TrieMap[(String, String), AtomicLong]()
+  private def hincrBy(str1: String, str2: String, inc: Long) = {
+    val kv = (str1, str2)
+    counters.get(kv) match {
+      case Some(al) => al.addAndGet(inc)
+      case None => counters ++= Map(kv -> new AtomicLong(inc))
+    }
+  }
 
   def receive = {
     case Shutdown =>
       io.netflow.Service.removeActorFor(sender)
       backend.stop()
+      cflow.NetFlowV9Template.clear(sender)
+      cflow.NetFlowV10Template.clear(sender)
       context.stop(self)
     case tmpl: cflow.Template => backend.save(tmpl)
     case Success(fp: FlowPacket) =>
@@ -57,8 +64,8 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
 
     def action() {
       if (counters.size > 0) {
-        backend.save(counters, sender)
-        counters = Map()
+        backend.save(counters.toMap, sender)
+        counters = scala.collection.concurrent.TrieMap()
       }
       val repoll = new DateTime().minusSeconds(Storage.pollInterval).isAfter(lastPoll)
       if (repoll) {
