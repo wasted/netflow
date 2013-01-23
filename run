@@ -19,5 +19,7 @@ java -ea -server $JAVA_OPTS           \
   -Dio.netty.epollBugWorkaround=true  \
   -Xms128M                            \
   -Xmx1G                              \
+  -Dconfig.file=src/main/resources/application.conf \
+  -Dlogback.configurationFile=src/main/resources/logback.production.xml \
   -jar target/netflow-$( git describe --always ).jar
 
