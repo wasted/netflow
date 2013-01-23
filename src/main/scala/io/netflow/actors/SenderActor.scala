@@ -7,13 +7,9 @@ import io.wasted.util._
 
 import java.net.{ InetAddress, InetSocketAddress }
 
-import io.netty.buffer._
-import io.netty.channel.socket.DatagramPacket
-
 import org.joda.time.DateTime
 import akka.actor._
 import scala.util.{ Try, Success, Failure }
-import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -25,6 +21,27 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   private val accountPerIP = false
   private val accountPerIPProto = false
   private var cancellable = Shutdown.schedule()
+
+  private var counters = Map[(String, String), Long]()
+  private def hincrBy(str1: String, str2: String, inc: Long) =
+    counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
+
+  def receive = {
+    case Shutdown =>
+      io.netflow.Service.removeActorFor(sender)
+      backend.stop()
+      context.stop(self)
+    case tmpl: cflow.Template => backend.save(tmpl)
+    case Success(fp: FlowPacket) =>
+      Shutdown.avoid
+      save(fp)
+    case Failure(e) =>
+      Shutdown.avoid
+      info("Unsupported FlowPacket received: %s", e)
+      backend.countDatagram(new DateTime, sender, "bad:flow")
+    case Flush =>
+      Flush.action()
+  }
 
   private case object Shutdown {
     def schedule() = context.system.scheduler.scheduleOnce(5.minutes, self, Shutdown)
@@ -52,76 +69,10 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       schedule()
     }
   }
-
-  private var counters = Map[(String, String), Long]()
-  private def hincrBy(str1: String, str2: String, inc: Long) =
-    counters ++= Map((str1, str2) -> (counters.get((str1, str2)).getOrElse(0L) + inc))
-
-  def receive = {
-    case Shutdown =>
-      io.netflow.Service.removeActorFor(sender)
-      backend.stop()
-      context.stop(self)
-    // We save FlowPackets in the thread-safety of an actor
-    case fp: FlowPacket =>
-      Shutdown.avoid()
-      save(fp)
-    case NetFlow(data: ByteBuf) =>
-      // Thread-off with a parser
-      Future {
-        Shutdown.avoid()
-        handleCisco(data) match {
-          // We re-reschedule the save to be thread-safe
-          case Success(flowPacket) => self ! flowPacket
-          case Failure(e) =>
-            info("Unsupported NetFlow Packet received: %s", e)
-            backend.countDatagram(new DateTime, sender, "bad:netflow")
-        }
-        data.free()
-      }
-    case SFlow(data: ByteBuf) =>
-      // Thread-off with a parser
-      Future {
-        Shutdown.avoid()
-        handleSFlow(data) match {
-          // We re-reschedule the save to be thread-safe
-          case Success(flowPacket) => self ! flowPacket
-          case Failure(e) =>
-            info("Unsupported sFlow Packet received: %s", e)
-            backend.countDatagram(new DateTime, sender, "bad:sflow")
-        }
-        data.free()
-      }
-    case Flush =>
-      Flush.action()
-  }
   Flush.action()
 
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
-
-  private val unhandledException = Failure(new UnhandledFlowPacketException)
-
-  private def handleSFlow(buf: ByteBuf): Try[sflow.SFlowV5Packet] = {
-    if (buf.readableBytes < 28) return unhandledException
-    Tryo(buf.getLong(0)) match {
-      case Some(3) => unhandledException // sFlow 3
-      case Some(4) => unhandledException // sFlow 4
-      case Some(5) => sflow.SFlowV5Packet(sender, buf)
-      case _ => unhandledException
-    }
-  }
-
-  private def handleCisco(buf: ByteBuf): Try[FlowPacket] =
-    Tryo(buf.getUnsignedShort(0)) match {
-      case Some(1) => cflow.NetFlowV1Packet(sender, buf)
-      case Some(5) => cflow.NetFlowV5Packet(sender, buf)
-      case Some(6) => cflow.NetFlowV6Packet(sender, buf)
-      case Some(7) => cflow.NetFlowV7Packet(sender, buf)
-      case Some(9) => cflow.NetFlowV9Packet(sender, buf, backend)
-      case Some(10) => cflow.NetFlowV10Packet(sender, buf, backend)
-      case _ => unhandledException
-    }
 
   private def save(flowPacket: FlowPacket): Unit = {
     val it1 = flowPacket.flows.iterator

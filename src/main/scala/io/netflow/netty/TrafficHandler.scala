@@ -1,6 +1,7 @@
 package io.netflow.netty
 
 import io.netflow._
+import io.netflow.flows._
 import io.wasted.util._
 
 import io.netty.buffer._
@@ -8,6 +9,7 @@ import io.netty.channel._
 import io.netty.channel.socket.DatagramPacket
 
 import akka.actor.ActorRef
+import scala.util.{ Try, Success, Failure }
 import java.net.InetSocketAddress
 
 abstract class TrafficHandler extends ChannelInboundMessageHandlerAdapter[DatagramPacket] with Logger {
@@ -16,34 +18,51 @@ abstract class TrafficHandler extends ChannelInboundMessageHandlerAdapter[Datagr
     e.printStackTrace()
   }
 
-  def unsupportedPacket(sender: InetSocketAddress): Unit = {
-    warn("Unsupported UDP Packet received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
-  }
-
   override def messageReceived(ctx: ChannelHandlerContext, msg: DatagramPacket) {
     val sender = msg.remoteAddress
 
-    // The first two bytes contain the NetFlow version
-    if (msg.data.readableBytes < 2) return unsupportedPacket(sender)
+    // The first two bytes contain the NetFlow version and first four bytes the sFlow version
+    if (msg.data.readableBytes < 4)
+      return warn("Unsupported UDP Packet received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
+
     Service.findActorFor(sender) match {
-      case Some(actor) => send(actor, msg.data.copy)
+      case Some(actor) => send(actor, sender, msg.data)
       case None =>
         warn("Unauthorized NetFlow received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
     }
   }
 
-  def send(actor: ActorRef, buf: ByteBuf): Unit
-}
+  protected val unhandledException = Failure(new UnhandledFlowPacketException)
 
-case class NetFlow(buf: ByteBuf)
-case class SFlow(buf: ByteBuf)
+  def send(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf): Unit
+}
 
 @ChannelHandler.Sharable
 object NetFlowHandler extends TrafficHandler {
-  def send(actor: ActorRef, buf: ByteBuf) { actor ! NetFlow(buf) }
+  def send(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf) {
+    val fp: Try[FlowPacket] = Tryo(buf.getUnsignedShort(0)) match {
+      case Some(1) => cflow.NetFlowV1Packet(sender, buf)
+      case Some(5) => cflow.NetFlowV5Packet(sender, buf)
+      case Some(6) => cflow.NetFlowV6Packet(sender, buf)
+      case Some(7) => cflow.NetFlowV7Packet(sender, buf)
+      case Some(9) => cflow.NetFlowV9Packet(sender, buf, actor)
+      case Some(10) => cflow.NetFlowV10Packet(sender, buf, actor)
+      case _ => unhandledException
+    }
+    actor ! fp
+  }
 }
 
 @ChannelHandler.Sharable
 object SFlowHandler extends TrafficHandler {
-  def send(actor: ActorRef, buf: ByteBuf) { actor ! SFlow(buf) }
+  def send(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf) {
+    if (buf.readableBytes < 28) actor ! unhandledException
+    val fp: Try[FlowPacket] = Tryo(buf.getLong(0)) match {
+      case Some(3) => unhandledException // sFlow 3
+      case Some(4) => unhandledException // sFlow 4
+      case Some(5) => sflow.SFlowV5Packet(sender, buf)
+      case _ => unhandledException
+    }
+    actor ! fp
+  }
 }

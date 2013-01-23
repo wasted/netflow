@@ -1,13 +1,17 @@
 package io.netflow.flows.cflow
 
 import io.netflow.flows._
-import io.netflow.backends.Storage
 import io.wasted.util._
 
 import io.netty.buffer._
-import scala.language.postfixOps
 import java.net.InetSocketAddress
+
+import akka.actor._
+import akka.pattern.ask
+import akka.util.Timeout
+import scala.language.postfixOps
 import scala.util.{ Try, Failure, Success }
+import scala.concurrent.duration._
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -32,15 +36,16 @@ import scala.util.{ Try, Failure, Success }
  */
 object NetFlowV9Packet extends Logger {
   private val headerSize = 20
+  implicit val timeout = Timeout(5 seconds)
 
   /**
    * Parse a v9 Flow Packet
    *
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
-   * @param backend Storage backend to save templates to
+   * @param actor Actor responsible for this sender
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, backend: Storage): Try[NetFlowV9Packet] = Try[NetFlowV9Packet] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, actor: ActorRef): Try[NetFlowV9Packet] = Try[NetFlowV9Packet] {
     val version = buf.getInteger(0, 2).toInt
     if (version != 9) return Failure(new InvalidFlowVersionException(version))
     val packet = NetFlowV9Packet(sender, buf.readableBytes)
@@ -75,7 +80,7 @@ object NetFlowV9Packet extends Logger {
               val buffer = buf.slice(templateOffset, templateSize)
               NetFlowV9Template(sender, buffer, flowsetId) match {
                 case Success(tmpl) =>
-                  backend.save(tmpl)
+                  actor ! tmpl
                   packet.flows :+= tmpl
                 case Failure(e) => warn(e.toString)
               }
@@ -95,7 +100,7 @@ object NetFlowV9Packet extends Logger {
               val buffer = buf.slice(templateOffset, templateSize)
               NetFlowV9Template(sender, buffer, flowsetId) match {
                 case Success(tmpl) =>
-                  backend.save(tmpl)
+                  actor ! tmpl
                   packet.flows :+= tmpl
                 case Failure(e) => warn(e.toString); e.printStackTrace
               }
