@@ -78,17 +78,16 @@ class Redis(host: String, port: Int) extends Storage {
   def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix): List[ThruputRecipient] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
     redisClient.smembers("thruput:" + ip + "/" + port + ":" + prefix.toString).asStringList(CharsetUtil.UTF_8).toList flatMap { rcpt =>
-      rcpt.indexOf(":") match {
-        case -1 =>
-          getThruputPlatform(rcpt).map(pf => ThruputRecipient(pf))
-        case splitAt =>
-          val split = rcpt.splitAt(splitAt)
-          getThruputPlatform(split._1) match {
-            case Some(platform) if split._2.trim.length == 0 => // broadcast
+      val split = rcpt.split(":", 2)
+      split.length match {
+        case 1 => getThruputPlatform(split(0)).map(pf => ThruputRecipient(pf))
+        case 2 =>
+          getThruputPlatform(split(0)) match {
+            case Some(platform) if split(1).trim.length == 0 => // broadcast
               Some(ThruputRecipient(platform))
             case Some(platform) => // to user
-              Some(ThruputRecipient(platform, Some(split._2)))
-            case None => info("Thruput Platform " + split._1 + " could not be found"); None
+              Some(ThruputRecipient(platform, Some(split(1))))
+            case None => info("Thruput Platform " + split(0) + " could not be found"); None
           }
       }
     }
