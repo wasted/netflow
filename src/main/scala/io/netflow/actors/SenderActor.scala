@@ -14,9 +14,10 @@ import scala.util.{ Try, Success, Failure }
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with Thruput with Logger {
+class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with ThruputSender with Logger {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
   private var senderPrefixes: List[InetPrefix] = List()
+  protected var thruputPrefixes: List[InetPrefix] = List()
 
   private val accountPerIP = false
   private val accountPerIPProto = false
