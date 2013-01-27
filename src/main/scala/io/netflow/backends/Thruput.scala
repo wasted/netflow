@@ -27,7 +27,8 @@ case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
     """{ "mime": "wasted/netflow", "body": """ + fd.json + ip + user + " }"
   }
 }
-trait Thruput {
+
+trait ThruputSender {
   protected val backend: Storage
   protected var thruputPrefixes: List[InetPrefix]
 
