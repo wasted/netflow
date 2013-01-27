@@ -4,7 +4,7 @@ import io.netflow.actors._
 import io.netflow.backends._
 import io.wasted.util._
 
-import scala.collection.immutable.HashMap
+import java.util.concurrent.ConcurrentHashMap
 
 import java.net.InetSocketAddress
 import akka.actor._
@@ -16,15 +16,15 @@ object Service extends Logger {
   val backend: Storage = Storage.start().get
   val system = ActorSystem("netflow")
 
-  private var senderActors = HashMap[InetSocketAddress, ActorRef]()
+  private val senderActors = new ConcurrentHashMap[InetSocketAddress, ActorRef]()
   def findActorFor(sender: InetSocketAddress): Option[ActorRef] = senderActors.get(sender) match {
-    case Some(actor) => Some(actor)
-    case None =>
+    case actor: ActorRef if actor != null => Some(actor)
+    case _ =>
       backend.acceptFrom(sender) match {
         case Some(sender) =>
           val actor = Tryo(system.actorOf(Props(new SenderActor(sender, Storage.start().get)), sender.toString.replaceAll("/", ""))) match {
             case Some(actor) =>
-              senderActors ++= Map(sender -> actor)
+              senderActors.put(sender, actor)
               actor
             case None => system.actorFor("akka://netflow/user/" + sender.toString.replaceAll(",", ""))
           }
@@ -34,7 +34,7 @@ object Service extends Logger {
   }
 
   def removeActorFor(sender: InetSocketAddress) {
-    senderActors -= sender
+    senderActors.remove(sender)
   }
 
   def start() {
