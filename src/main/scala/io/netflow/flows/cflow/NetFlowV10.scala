@@ -6,9 +6,6 @@ import io.wasted.util._
 import io.netty.buffer._
 import java.net.InetSocketAddress
 
-import akka.actor._
-import akka.pattern.ask
-import akka.util.Timeout
 import scala.language.postfixOps
 import scala.util.{ Try, Failure, Success }
 import scala.concurrent.duration._
@@ -44,7 +41,7 @@ object NetFlowV10Packet extends Logger {
    * @param buf Netty ByteBuf containing the UDP Packet
    * @param actor Actor responsible for this sender
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, actor: ActorRef): Try[NetFlowV10Packet] = Try[NetFlowV10Packet] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, actor: Wactor.Address): Try[NetFlowV10Packet] = Try[NetFlowV10Packet] {
     val version = buf.getInteger(0, 2).toInt
     if (version != 10) return Failure(new InvalidFlowVersionException(version))
     val packet = NetFlowV10Packet(sender, buf.readableBytes)

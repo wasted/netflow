@@ -4,36 +4,34 @@ import io.netflow.actors._
 import io.netflow.backends._
 import io.wasted.util._
 
+import scala.collection.JavaConversions._
 import java.util.concurrent.ConcurrentHashMap
-
 import java.net.InetSocketAddress
-import akka.actor._
 
 /**
  * Our very own lookup service for all things netflow related
  */
 object Service extends Logger {
   val backend: Storage = Storage.start().get
-  val system = ActorSystem("netflow")
 
-  private val senderActors = new ConcurrentHashMap[InetSocketAddress, ActorRef]()
-  def findActorFor(sender: InetSocketAddress): Option[ActorRef] = senderActors.get(sender) match {
-    case actor: ActorRef if actor != null => Some(actor)
-    case _ =>
-      backend.acceptFrom(sender) match {
-        case Some(sender) =>
-          val actor = Tryo(system.actorOf(Props(new SenderActor(sender, Storage.start().get)), sender.toString.replaceAll("/", ""))) match {
-            case Some(actor) =>
-              senderActors.put(sender, actor)
-              actor
-            case None => system.actorFor("akka://netflow/user/" + sender.toString.replaceAll(",", ""))
-          }
-          Some(actor)
-        case _ => None
-      }
+  private val senderActors = new ConcurrentHashMap[(String, Int), Wactor.Address]()
+  def findActorFor(osender: InetSocketAddress): Option[Wactor.Address] = {
+    val sender = (osender.getAddress.getHostAddress, _: Int)
+    Option(senderActors.get(sender(osender.getPort))) orElse Option(senderActors.get(sender(0))) match {
+      case Some(actor) => Some(actor)
+      case _ =>
+        backend.acceptFrom(osender) match {
+          case Some(osender) =>
+            val actor = new SenderActor(osender, Storage.start().get)
+            senderActors.put(sender(osender.getPort), actor)
+            Some(actor)
+          case _ => None
+        }
+    }
   }
 
-  def removeActorFor(sender: InetSocketAddress) {
+  def removeActorFor(osender: InetSocketAddress) {
+    val sender = (osender.getAddress.getHostAddress, osender.getPort)
     senderActors.remove(sender)
   }
 
@@ -42,6 +40,7 @@ object Service extends Logger {
   }
 
   def stop() {
+    senderActors.values foreach { _ ! Wactor.Die }
     info("Stopped")
   }
 }

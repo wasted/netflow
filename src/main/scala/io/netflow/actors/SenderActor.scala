@@ -9,13 +9,13 @@ import java.net.{ InetAddress, InetSocketAddress }
 import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
-import akka.actor._
 import scala.util.{ Try, Success, Failure }
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Actor with ThruputSender with Logger {
+class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Wactor with ThruputSender {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
+  info("Starting for " + loggerName)
   private var senderPrefixes: List[InetPrefix] = List()
   protected var thruputPrefixes: List[InetPrefix] = List()
 
@@ -38,7 +38,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       backend.stop()
       cflow.NetFlowV9Template.clear(sender)
       cflow.NetFlowV10Template.clear(sender)
-      context.stop(self)
+      this ! Wactor.Die
     case tmpl: cflow.Template => backend.save(tmpl)
     case Success(fp: FlowPacket) =>
       Shutdown.avoid
@@ -52,7 +52,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   }
 
   private case object Shutdown {
-    def schedule() = context.system.scheduler.scheduleOnce(5.minutes, self, Shutdown)
+    def schedule() = scheduleOnce(Shutdown, 5.minutes)
     def avoid() {
       cancellable.cancel
       cancellable = schedule()
@@ -60,7 +60,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   }
 
   private case object Flush {
-    def schedule() = context.system.scheduler.scheduleOnce(Storage.flushInterval.seconds, self, Flush)
+    def schedule() = scheduleOnce(Flush, Storage.flushInterval.seconds)
     var lastPoll = new DateTime().minusSeconds(Storage.pollInterval + 1)
 
     def action() {
@@ -77,7 +77,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
       schedule()
     }
   }
-  Flush.action()
+  this ! Flush
 
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))

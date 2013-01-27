@@ -8,7 +8,6 @@ import io.netty.buffer._
 import io.netty.channel._
 import io.netty.channel.socket.DatagramPacket
 
-import akka.actor.ActorRef
 import scala.util.{ Try, Success, Failure }
 import java.net.InetSocketAddress
 
@@ -34,12 +33,12 @@ abstract class TrafficHandler extends ChannelInboundMessageHandlerAdapter[Datagr
 
   protected val unhandledException = Failure(new UnhandledFlowPacketException)
 
-  def send(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf): Unit
+  def send(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit
 }
 
 @ChannelHandler.Sharable
 object NetFlowHandler extends TrafficHandler {
-  def send(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf) {
+  def send(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf) {
     val fp: Try[FlowPacket] = Tryo(buf.getUnsignedShort(0)) match {
       case Some(1) => cflow.NetFlowV1Packet(sender, buf)
       case Some(5) => cflow.NetFlowV5Packet(sender, buf)
@@ -55,7 +54,7 @@ object NetFlowHandler extends TrafficHandler {
 
 @ChannelHandler.Sharable
 object SFlowHandler extends TrafficHandler {
-  def send(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf) {
+  def send(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf) {
     if (buf.readableBytes < 28) actor ! unhandledException
     val fp: Try[FlowPacket] = Tryo(buf.getLong(0)) match {
       case Some(3) => unhandledException // sFlow 3
