@@ -23,7 +23,7 @@ trait FlowPacket {
   var date = new org.joda.time.DateTime
   var count: Int = -1
   var uptime: Long = -1L
-  var flows = Array[Flow[_]]()
+  var flows = Vector[Flow[_]]()
 }
 
 /**

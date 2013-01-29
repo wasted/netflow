@@ -59,6 +59,10 @@ object NetFlowV10Packet extends Logger {
 
     var flowsetCounter = 0
     var packetOffset = headerSize
+
+    // we use a mutable array here in order not to bash the garbage collector so badly
+    // because whenever we append something to our vector, the old vectors need to get GC'd
+    val flows = scala.collection.mutable.ArrayBuffer[Flow[_]]()
     while (flowsetCounter < packet.count && packetOffset < packet.length) {
       val flowsetId = buf.getInteger(packetOffset, 2).toInt
       val flowsetLength = buf.getInteger(packetOffset + 2, 2).toInt
@@ -77,7 +81,7 @@ object NetFlowV10Packet extends Logger {
               NetFlowV10Template(sender, buffer, flowsetId) match {
                 case Success(tmpl) =>
                   actor ! tmpl
-                  packet.flows :+= tmpl
+                  flows += tmpl
                 case Failure(e) => warn(e.toString)
               }
               flowsetCounter += 1
@@ -97,7 +101,7 @@ object NetFlowV10Packet extends Logger {
               NetFlowV10Template(sender, buffer, flowsetId) match {
                 case Success(tmpl) =>
                   actor ! tmpl
-                  packet.flows :+= tmpl
+                  flows += tmpl
                 case Failure(e) => warn(e.toString); e.printStackTrace
               }
               flowsetCounter += 1
@@ -117,7 +121,7 @@ object NetFlowV10Packet extends Logger {
                   else NetFlowV10Data(sender, buffer, tmpl, packet.uptime)
 
                 flow match {
-                  case Success(flow) => packet.flows :+= flow
+                  case Success(flow) => flows += flow
                   case Failure(e) => warn(e.toString)
                 }
                 flowsetCounter += 1
@@ -129,6 +133,7 @@ object NetFlowV10Packet extends Logger {
       }
       packetOffset += flowsetLength
     }
+    packet.flows = flows.toVector
     packet
   }
 }

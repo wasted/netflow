@@ -51,10 +51,11 @@ object NetFlowV7Packet {
     packet.date = new org.joda.time.DateTime(buf.getInteger(8, 4) * 1000)
     packet.flowSequence = buf.getInteger(16, 4)
 
-    packet.flows = Array.range(0, packet.count) flatMap { i =>
-      NetFlowV7(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).toOption
-    }
-
+    // we use a mutable array here in order not to bash the garbage collector so badly
+    // because whenever we append something to our vector, the old vectors need to get GC'd
+    val flows = scala.collection.mutable.ArrayBuffer[Flow[_]]()
+    for (i <- 0 to packet.count) NetFlowV7(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).foreach(flows += _)
+    packet.flows = flows.toVector
     packet
   }
 }
