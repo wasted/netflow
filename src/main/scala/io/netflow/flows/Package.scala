@@ -10,7 +10,7 @@ package object flows {
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")
 
-  implicit class RichByteBuf(buf: ByteBuf) {
+  implicit class RichByteBuf(val buf: ByteBuf) extends AnyVal {
     def getInetAddress(template: flows.cflow.Template, field: TemplateFields.Value): Option[InetAddress] = {
       if (!template.hasField(field)) return None
       Some(getInetAddress(template.typeOffset(field), template.typeLen(field)))
