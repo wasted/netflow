@@ -41,7 +41,7 @@ resolvers ++= Seq(
 
 
 libraryDependencies ++= Seq(
-  "io.wasted" %% "wasted-util" % "0.4.1",
+  "io.wasted" %% "wasted-util" % "0.4.2",
   "ch.qos.logback" % "logback-classic" % "1.0.7" % "compile",
   "org.specs2" %% "specs2" % "1.13" % "test",
   "com.github.spullara.redis" % "client" % "0.3"
