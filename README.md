@@ -35,10 +35,15 @@ Can both be found in the Issues section up top.
 
 ## Compiling
 
-You need our utility library [wasted-util](http://wasted.github.com/scala-util) installed in your local sbt repository, since it's not mirrored on any Ivy repository yet. But we are working on that!
-
 ```
   ./sbt compile
+```
+
+
+## Running
+
+```
+  ./sbt run
 ```
 
 
@@ -208,7 +213,7 @@ By the way, tcpdump has an awesome [manual](http://www.tcpdump.org/tcpdump_man.h
 
 
 ```
-  Copyright 2012 wasted.io Ltd <really@wasted.io>
+  Copyright 2012, 2013 wasted.io Ltd <really@wasted.io>
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.

@@ -15,7 +15,7 @@ object Server extends App with Logger { PS =>
   private var servers: List[Bootstrap] = List()
 
   def start() {
-    info("Starting up netflow.io version %s", lib.BuildInfo.version)
+    info("Starting up netflow.io version %s", io.netflow.lib.BuildInfo.version)
     Service.start()
 
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory())
