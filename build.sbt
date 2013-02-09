@@ -5,7 +5,7 @@ name := "netflow"
 
 organization := "io.wasted"
 
-version := ("git describe --always"!!).trim.replaceAll("^v", "")
+version := scala.io.Source.fromFile("version").mkString.trim
 
 scalaVersion := "2.10.0"
 
@@ -13,7 +13,7 @@ scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-optimise", "-Y
 
 mainClass in assembly := Some("io.netflow.Server")
 
-jarName in assembly := "netflow-" + ("git describe --always"!!).trim.replaceAll("^v", "") + ".jar"
+jarName in assembly := "netflow-" + scala.io.Source.fromFile("version").mkString.trim + ".jar"
 
 resolvers ++= Seq(
   "wasted.io/repo" at "http://repo.wasted.io/mvn",
