@@ -5,6 +5,7 @@ import io.netflow.backends._
 import io.wasted.util._
 
 import scala.collection.JavaConversions._
+import scala.util.{ Try, Success, Failure }
 import java.util.concurrent.ConcurrentHashMap
 import java.net.InetSocketAddress
 
@@ -12,7 +13,10 @@ import java.net.InetSocketAddress
  * Our very own lookup service for all things netflow related
  */
 object Service extends Logger {
-  val backend: Storage = Storage.start().get
+  val backend: Storage = Try(Storage.start().get) match {
+    case Success(ba) => ba
+    case Failure(e) => throw new IllegalArgumentException("Unable to connect to the specified database host")
+  }
 
   private val senderActors = new ConcurrentHashMap[(String, Int), Wactor.Address]()
   def findActorFor(osender: InetSocketAddress): Option[Wactor.Address] = {
