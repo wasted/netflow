@@ -16,9 +16,10 @@ java -ea -server $JAVA_OPTS           \
   -XX:+OptimizeStringConcat           \
   -XX:+UseParallelGC                  \
   -XX:SurvivorRatio=3                 \
-  -Dio.netty.epollBugWorkaround=true  \
   -Xms128M                            \
   -Xmx1G                              \
+  -Dio.netty.epollBugWorkaround=true  \
+  -Dconfig.file=src/main/resources/reference.conf \
   -Dlogback.configurationFile=src/main/resources/logback.production.xml \
   -jar target/netflow-$( cat version ).jar
 
