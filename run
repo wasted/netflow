@@ -20,5 +20,5 @@ java -ea -server $JAVA_OPTS           \
   -Xms128M                            \
   -Xmx1G                              \
   -Dlogback.configurationFile=src/main/resources/logback.production.xml \
-  -jar target/netflow-$( git describe --always ).jar
+  -jar target/netflow-$( cat version ).jar
 
