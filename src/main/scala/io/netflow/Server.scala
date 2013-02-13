@@ -5,8 +5,8 @@ import io.wasted.util._
 
 import io.netty.bootstrap._
 import io.netty.channel._
+import io.netty.channel.nio._
 import io.netty.channel.socket.nio._
-import io.netty.logging._
 
 import scala.util.{ Try, Success, Failure }
 
@@ -17,8 +17,6 @@ object Server extends App with Logger { PS =>
   def start() {
     info("Starting up netflow.io version %s", io.netflow.lib.BuildInfo.version)
     Service.start()
-
-    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory())
 
     def startListeningFor(what: String, config: String, default: List[String], handler: ChannelHandler) {
       val conf = Config.getStringList(config, default).map(_.split(":"))

@@ -31,6 +31,8 @@ libraryDependencies ++= Seq(
   "com.github.spullara.redis" % "client" % "0.3"
 )
 
+publishTo := Some("wasted.io/repo" at "http://repo.wasted.io/mvn")
+
 scalariformSettings
 
 ScalariformKeys.preferences := FormattingPreferences().setPreference(AlignParameters, true)
@@ -46,4 +48,6 @@ buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion) ++ S
 sourceGenerators in Compile <+= buildInfo
 
 buildInfoPackage := "io.netflow.lib"
+
+addArtifact(Artifact("io.netflow", "server"), assembly)
 
