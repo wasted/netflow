@@ -49,5 +49,5 @@ sourceGenerators in Compile <+= buildInfo
 
 buildInfoPackage := "io.netflow.lib"
 
-addArtifact(Artifact("io.netflow", "server"), assembly)
+addArtifact(Artifact("netflow", "server"), assembly)
 
