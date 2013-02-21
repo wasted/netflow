@@ -16,10 +16,11 @@ mainClass in assembly := Some("io.netflow.Server")
 jarName in assembly := "netflow-" + scala.io.Source.fromFile("version").mkString.trim + ".jar"
 
 resolvers ++= Seq(
+  "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
   "wasted.io/repo" at "http://repo.wasted.io/mvn",
+  "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
   "Twitter's Repository" at "http://maven.twttr.com/",
   "Kungfuters" at "http://maven.kungfuters.org/content/groups/public/",
-  "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
   "Typesafe Ivy Repo" at "http://repo.typesafe.com/typesafe/ivy-releases",
   "Java.net Maven2 Repository" at "http://download.java.net/maven/2/"
 )
