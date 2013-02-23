@@ -37,7 +37,7 @@ ensime_port
 # binary stuff
 build
 target
-lib
+/lib
 
 # 
 src/main/resources/props/*
