@@ -216,7 +216,7 @@ case class NetFlowV9Data(val sender: InetSocketAddress, val length: Int, val tem
   def version = "NetFlowV9Data " + template
 
   var extraFields = Map[String, Long]()
-  override lazy val jsonExtra = ",  " + extraFields.map(b => "\"" + b._1 + "\": " + b._2).mkString(", ")
+  override lazy val jsonExtra = ",  " + extraFields.map(b => "\"" + b._1.toLowerCase + "\": " + b._2).mkString(", ")
 
   override lazy val stringExtra = "- Template %s".format(template)
 }

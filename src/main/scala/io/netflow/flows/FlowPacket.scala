@@ -54,22 +54,22 @@ trait NetFlowData[T] extends Flow[T] {
 
   protected def jsonExtra = "{}"
   lazy val json = "{" +
-    "\"FlowVersion\": \"" + version + "\", " +
-    "\"FlowSender\": \"" + senderIP + "/" + senderPort + "\", " +
-    "\"SrcPort\": " + srcPort + ", " +
-    "\"DstPort\": " + dstPort + ", " +
-    "\"SrcAddress\": \"" + srcAddressIP + "\", " +
-    "\"DstAddress\": \"" + dstAddressIP + "\", " +
-    "\"SrcAS\": " + srcAS + ", " +
-    "\"DstAS\": " + dstAS + ", " +
-    "\"NextHop\": \"" + nextHopIP + "\", " +
-    "\"Proto\": " + proto + ", " +
-    "\"Tos\": " + tos + ", " +
-    "\"Pkts\": " + pkts + ", " +
-    "\"Bytes\": " + bytes + ", " +
-    "\"Start\": " + start + ", " +
-    "\"Stop\": " + stop + ", " +
-    "\"TCPFlags\": " + tcpflags + jsonExtra + "}"
+    "\"flowVersion\": \"" + version + "\", " +
+    "\"flowSender\": \"" + senderIP + "/" + senderPort + "\", " +
+    "\"srcPort\": " + srcPort + ", " +
+    "\"dstPort\": " + dstPort + ", " +
+    "\"srcAddress\": \"" + srcAddressIP + "\", " +
+    "\"dstAddress\": \"" + dstAddressIP + "\", " +
+    "\"srcAS\": " + srcAS + ", " +
+    "\"dstAS\": " + dstAS + ", " +
+    "\"nextHop\": \"" + nextHopIP + "\", " +
+    "\"proto\": " + proto + ", " +
+    "\"tos\": " + tos + ", " +
+    "\"pkts\": " + pkts + ", " +
+    "\"bytes\": " + bytes + ", " +
+    "\"start\": " + start + ", " +
+    "\"stop\": " + stop + ", " +
+    "\"tcpFlags\": " + tcpflags + jsonExtra + "}"
 
   protected def stringExtra = ""
   override def toString() = "%s from %s/%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(
