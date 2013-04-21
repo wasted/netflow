@@ -12,21 +12,21 @@ import scala.util.{ Try, Success, Failure }
 
 object Server extends App with Logger { PS =>
   override def main(args: Array[String]) { start() }
-  private var servers: List[Bootstrap] = List()
 
   def start() {
     info("Starting up netflow.io version %s", io.netflow.lib.BuildInfo.version)
     Service.start()
 
+    val eventLoop = new NioEventLoopGroup
     def startListeningFor(what: String, config: String, default: List[String], handler: ChannelHandler) {
       val conf = Config.getStringList(config, default).map(_.split(":"))
       val listeners = conf.map(l => new java.net.InetSocketAddress(l.head, l.last.toInt))
 
       // Refresh filters from Backend
       Try {
-        servers = listeners.map { addr =>
+        listeners.foreach { addr =>
           val srv = new Bootstrap
-          val chan = srv.group(new NioEventLoopGroup)
+          val chan = srv.group(eventLoop)
             .localAddress(addr)
             .channel(classOf[NioDatagramChannel])
             .handler(handler)
@@ -53,16 +53,15 @@ object Server extends App with Logger { PS =>
 
     // Add Shutdown Hook to cleanly shutdown Netty
     Runtime.getRuntime.addShutdownHook(new Thread {
-      override def run() { PS.stop }
+      override def run() { PS.stop(eventLoop) }
     })
   }
 
-  private def stop() {
+  private def stop(eventLoop: NioEventLoopGroup) {
     info("Shutting down")
 
     // Shut down all event loops to terminate all threads.
-    Tryo(servers.foreach(_.shutdown))
-    servers = List()
+    eventLoop.shutdown()
     Service.stop()
     info("Shutdown complete")
   }

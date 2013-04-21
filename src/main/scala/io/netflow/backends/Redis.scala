@@ -4,9 +4,9 @@ import io.netflow.flows._
 import io.wasted.util._
 
 import org.joda.time.DateTime
-import redis.client._
+import com.lambdaworks.redis._
 import scala.collection.immutable.HashMap
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 import io.netty.util.CharsetUtil
 import java.util.UUID
@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 class Redis(host: String, port: Int) extends Storage {
   private val redisClient = new RedisClient(host, port)
+  private val redisConnection = redisClient.connect()
+  //private val redisAsyncConnection = redisClient.connectAsync()
 
   def save(flowData: Map[(String, String), AtomicLong], sender: InetSocketAddress) {
     val senderIP = sender.getAddress.getHostAddress
@@ -22,14 +24,14 @@ class Redis(host: String, port: Int) extends Storage {
     val prefix = "netflow:" + senderIP + "/" + senderPort
 
     flowData foreach {
-      case ((hash, name), value) => redisClient.hincrby(prefix + ":" + hash, name, value.get)
+      case ((hash, name), value) => redisConnection.hincrby(prefix + ":" + hash, name, value.get)
     }
   }
 
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
     var fields = HashMap[String, Int]()
-    redisClient.hgetall("template:" + ip + "/" + port + ":" + id).asStringMap(CharsetUtil.UTF_8) foreach { field =>
+    redisConnection.hgetall("template:" + ip + "/" + port + ":" + id).asScala foreach { field =>
       Tryo(fields ++= Map(field._1 -> field._2.toInt))
     }
     if (fields.size == 0) None else Some(fields)
@@ -38,32 +40,32 @@ class Redis(host: String, port: Int) extends Storage {
   def save(tmpl: cflow.Template) {
     val (ip, port) = (tmpl.sender.getAddress.getHostAddress, tmpl.sender.getPort)
     val key = "template:" + ip + "/" + port + ":" + tmpl.id
-    redisClient.del(Array(key))
-    redisClient.hmset(key, tmpl.objectMap)
+    redisConnection.del(key)
+    redisConnection.hmset(key, tmpl.objectMap.asJava)
   }
 
   def countDatagram(date: DateTime, sender: InetSocketAddress, kind: String, flowsPassed: Int = 0) {
     val senderAddr = sender.getAddress.getHostAddress + "/" + sender.getPort
-    redisClient.hincrby("stats:" + senderAddr, kind, 1)
-    redisClient.hset("stats:" + senderAddr, "last", date.getMillis.toString)
+    redisConnection.hincrby("stats:" + senderAddr, kind, 1)
+    redisConnection.hset("stats:" + senderAddr, "last", date.getMillis.toString)
   }
 
   def acceptFrom(sender: InetSocketAddress): Option[InetSocketAddress] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-    if (redisClient.sismember("senders", ip + "/" + port).data == 1) return Some(sender)
-    if (redisClient.sismember("senders", ip + "/0").data == 1) return Some(new InetSocketAddress(sender.getAddress, 0))
+    if (redisConnection.sismember("senders", ip + "/" + port)) return Some(sender)
+    if (redisConnection.sismember("senders", ip + "/0")) return Some(new InetSocketAddress(sender.getAddress, 0))
     None
   }
 
   def getThruputPrefixes(sender: InetSocketAddress): List[InetPrefix] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-    redisClient.smembers("thruput:" + ip + "/" + port).asStringList(CharsetUtil.UTF_8).toList flatMap (getPrefix)
+    redisConnection.smembers("thruput:" + ip + "/" + port).asScala.toList.flatMap(getPrefix)
   }
 
   def getThruputPlatform(id: String): Option[ThruputPlatform] = {
     Tryo(UUID.fromString(id)) match {
       case Some(uuid) =>
-        val map = mapAsScalaMap(redisClient.hgetall("thruput:" + id).asStringMap(CharsetUtil.UTF_8))
+        val map = redisConnection.hgetall("thruput:" + id).asScala
         if (map.size == 0) return None
         for {
           url <- map.get("url")
@@ -77,7 +79,7 @@ class Redis(host: String, port: Int) extends Storage {
 
   def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix): List[ThruputRecipient] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-    redisClient.smembers("thruput:" + ip + "/" + port + ":" + prefix.toString).asStringList(CharsetUtil.UTF_8).toList flatMap { rcpt =>
+    redisConnection.smembers("thruput:" + ip + "/" + port + ":" + prefix.toString).asScala.toList flatMap { rcpt =>
       val split = rcpt.split(":", 2)
       split.length match {
         case 1 => getThruputPlatform(split(0)).map(pf => ThruputRecipient(pf))
@@ -95,10 +97,11 @@ class Redis(host: String, port: Int) extends Storage {
 
   def getPrefixes(sender: InetSocketAddress): List[InetPrefix] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
-    redisClient.smembers("sender:" + ip + "/" + port).asStringList(CharsetUtil.UTF_8).toList flatMap (getPrefix)
+    redisConnection.smembers("sender:" + ip + "/" + port).asScala.toList.flatMap(getPrefix)
   }
 
   def stop() {
-    redisClient.close()
+    redisConnection.close()
+    redisConnection.close()
   }
 }

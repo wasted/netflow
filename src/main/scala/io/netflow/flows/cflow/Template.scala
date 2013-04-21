@@ -1,7 +1,7 @@
 package io.netflow.flows.cflow
 
 import io.netflow.flows._
-import io.netflow.Service
+import io.netflow.backends.Storage
 import io.wasted.util._
 
 import io.netty.buffer._
@@ -65,10 +65,13 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
 
   def apply(sender: InetSocketAddress, id: Int): Option[T] =
     cache.get((sender, id)) orElse {
-      Service.backend.ciscoTemplateFields(sender, id) match {
+      val backend = Storage.start().get
+      val ret = backend.ciscoTemplateFields(sender, id) match {
         case Some(fields: HashMap[String, AnyVal]) => Some(this(sender, id, fields))
         case None => None
       }
+      Storage.stop(backend)
+      ret
     }
 
   def apply(sender: InetSocketAddress, id: Int, map: HashMap[String, AnyVal]): T
@@ -83,7 +86,7 @@ trait Template extends Flow[Template] {
   lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + id
   lazy val stringMap = map.foldRight(HashMap[String, String]()) { (m, hm) => hm ++ Map(m._1 -> m._2.toString) }
   lazy val arrayMap: Array[String] = map.flatMap(b => Array(b._1, b._2.toString)).toArray
-  lazy val objectMap: Array[Object] = Array(arrayMap: _*)
+  def objectMap = map.map(b => (b._1, b._2.toString)).toMap
 
   lazy val length: Int = map.get("length") match {
     case Some(len: Int) => len
