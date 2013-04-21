@@ -37,11 +37,11 @@ object Server extends App with Logger { PS =>
           srv
         }
       } match {
-        case Success(v) => Some(v)
+        case Success(v) =>
         case Failure(f) =>
           error("Unable to bind for %s to that ip:port combination. Check your configuration.".format(what))
           debug(f)
-          stop
+          stop(eventLoop)
           return
       }
     }
