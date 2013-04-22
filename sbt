@@ -9,12 +9,12 @@ sbtver=0.12.2
 sbtjar=sbt-launch.jar
 sbtsum=d523ab71b5d2bcaead80d21d0af79361
 
-function download() {
+download() {
 	echo "downloading ${sbtjar}" 1>&2
 	curl -O "http://repo.typesafe.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${sbtver}/${sbtjar}"
 }
 
-function sbtjar_md5() {
+sbtjar_md5() {
 	openssl md5 < ${sbtjar} | cut -f2 -d'=' | awk '{print $1}'
 }
 
