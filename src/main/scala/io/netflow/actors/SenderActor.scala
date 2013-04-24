@@ -180,7 +180,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
 
     def account(prefix: String, value: Long) {
       hincrBy(prefix + ":years", year, value)
-      hincrBy(prefix + ":" + "year", month, value)
+      hincrBy(prefix + ":" + year, month, value)
       hincrBy(prefix + ":" + year + month, day, value)
       hincrBy(prefix + ":" + year + month + day, hour, value)
       hincrBy(prefix + ":" + year + month + day + "-" + hour, minute, value)
