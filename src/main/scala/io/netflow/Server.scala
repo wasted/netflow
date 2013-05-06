@@ -61,7 +61,7 @@ object Server extends App with Logger { PS =>
     info("Shutting down")
 
     // Shut down all event loops to terminate all threads.
-    eventLoop.shutdown()
+    eventLoop.shutdownGracefully()
     Service.stop()
     info("Shutdown complete")
   }

@@ -18,14 +18,14 @@ abstract class TrafficHandler extends ChannelInboundMessageHandlerAdapter[Datagr
   }
 
   override def messageReceived(ctx: ChannelHandlerContext, msg: DatagramPacket) {
-    val sender = msg.remoteAddress
+    val sender = msg.sender
 
     // The first two bytes contain the NetFlow version and first four bytes the sFlow version
-    if (msg.data.readableBytes < 4)
+    if (msg.content().readableBytes() < 4)
       return warn("Unsupported UDP Packet received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
 
     Service.findActorFor(sender) match {
-      case Some(actor) => send(actor, sender, msg.data)
+      case Some(actor) => send(actor, sender, msg.content())
       case None =>
         warn("Unauthorized NetFlow received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
     }
