@@ -171,40 +171,12 @@ object NetFlowV9Data extends Logger {
 
     flow.tcpflags = (buf.getInteger(template, TCP_FLAGS) getOrElse -1L).toInt
 
-    val getSrcs = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
-    val getDsts = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
+    flow.srcAddress = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
+    flow.dstAddress = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
     flow.nextHop = buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)
 
-    val direction = buf.getInteger(template, DIRECTION)
-
-    flow.srcAddress = direction match {
-      case Some(0) => getSrcs
-      case Some(1) => getDsts
-      case _ => getSrcs
-    }
-
-    flow.dstAddress = direction match {
-      case Some(0) => getDsts
-      case Some(1) => getSrcs
-      case _ => getDsts
-    }
-
-    flow.pkts = direction match {
-      case Some(0) => buf.getInteger(template, InPKTS, OutPKTS)
-      case Some(1) => buf.getInteger(template, OutPKTS, InPKTS)
-      case _ => buf.getInteger(template, InPKTS, OutPKTS)
-    }
-
-    flow.bytes = direction match {
-      case Some(0) => buf.getInteger(template, InBYTES, OutBYTES)
-      case Some(1) => buf.getInteger(template, OutBYTES, InBYTES)
-      case _ => buf.getInteger(template, InBYTES, OutBYTES)
-    }
-
-    direction match {
-      case Some(x) if x > 1 => return Failure(new IllegalFlowDirectionException(x.toInt, flow))
-      case _ =>
-    }
+    flow.pkts = buf.getInteger(template, InPKTS, OutPKTS)
+    flow.bytes = buf.getInteger(template, InBYTES, OutBYTES)
 
     if (parseExtraFields) flow.extraFields = template.getExtraFields(buf)
     flow

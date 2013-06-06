@@ -1,15 +1,23 @@
 #!/bin/sh
 
-if [ "$1" == "-dbg" ] || [ "$2" == "-dbg" ]; then
+for i in 1 2 3; do if [ "$(eval echo \"\$$i\")" == "-dbg" ]; then
+  echo "[+] debug mode enabled"
   JAVA_OPTS="$JAVA_OPTS -agentpath:/opt/yourkit/bin/linux-x86-64/libyjpagent.so"
-fi
+fi; done
 
-if [ "$1" == "-gc" ] || [ "$2" == "-gc" ]; then
+for i in 1 2 3; do if [ "$(eval echo \"\$$i\")" == "-dump" ]; then
+  echo "[+] dump mode enabled"
+#  JAVA_OPTS="$JAVA_OPTS \
+ # -XX:+PrintGC          \
+fi; done
+
+for i in 1 2 3; do if [ "$(eval echo \"\$$i\")" == "-gc" ]; then
+  echo "[+] verbose gc mode enabled"
   JAVA_OPTS="$JAVA_OPTS \
   -XX:+PrintGC          \
   -XX:+PrintGCDetails   \
   -XX:+PrintGCTimeStamps"
-fi
+fi; done
 
 java -ea -server $JAVA_OPTS           \
   -XX:+AggressiveOpts                 \

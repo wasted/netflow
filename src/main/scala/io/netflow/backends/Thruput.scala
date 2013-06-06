@@ -47,9 +47,9 @@ object ThruputClientManager {
 
 trait ThruputSender {
   protected def backend: Storage
-  protected def thruputPrefixes: List[InetPrefix]
+  protected def thruputPrefixes: List[NetFlowInetPrefix]
 
-  protected val thruput = (sender: InetSocketAddress, flow: Flow[_], prefix: InetPrefix, addr: InetAddress) => {
+  protected val thruput = (sender: InetSocketAddress, flow: Flow[_], prefix: NetFlowInetPrefix, addr: InetAddress) => {
     val iter = backend.getThruputRecipients(sender, prefix).groupBy(_.platform).iterator
     while (iter.hasNext) {
       val platformRcpts = iter.next()

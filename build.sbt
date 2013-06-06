@@ -27,6 +27,7 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
   "io.wasted" %% "wasted-util" % "0.5.0-SNAPSHOT",
+  "org.javassist" % "javassist" % "3.17.1-GA",
   "ch.qos.logback" % "logback-classic" % "1.0.7" % "compile",
   "org.specs2" %% "specs2" % "1.13" % "test",
   "com.lambdaworks" % "lettuce" % "2.3.0"

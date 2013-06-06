@@ -57,7 +57,7 @@ class Redis(host: String, port: Int) extends Storage {
     None
   }
 
-  def getThruputPrefixes(sender: InetSocketAddress): List[InetPrefix] = {
+  def getThruputPrefixes(sender: InetSocketAddress): List[NetFlowInetPrefix] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
     redisConnection.smembers("thruput:" + ip + "/" + port).asScala.toList.flatMap(getPrefix)
   }
@@ -77,7 +77,7 @@ class Redis(host: String, port: Int) extends Storage {
     }
   }
 
-  def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix): List[ThruputRecipient] = {
+  def getThruputRecipients(sender: InetSocketAddress, prefix: NetFlowInetPrefix): List[ThruputRecipient] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
     redisConnection.smembers("thruput:" + ip + "/" + port + ":" + prefix.toString).asScala.toList flatMap { rcpt =>
       val split = rcpt.split(":", 2)
@@ -95,7 +95,7 @@ class Redis(host: String, port: Int) extends Storage {
     }
   }
 
-  def getPrefixes(sender: InetSocketAddress): List[InetPrefix] = {
+  def getPrefixes(sender: InetSocketAddress): List[NetFlowInetPrefix] = {
     val (ip, port) = (sender.getAddress.getHostAddress, sender.getPort)
     redisConnection.smembers("sender:" + ip + "/" + port).asScala.toList.flatMap(getPrefix)
   }

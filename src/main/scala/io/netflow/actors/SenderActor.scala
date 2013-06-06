@@ -16,11 +16,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Wactor with ThruputSender {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
   info("Starting for " + loggerName)
-  private var senderPrefixes: List[InetPrefix] = List()
-  protected var thruputPrefixes: List[InetPrefix] = List()
+  private var senderPrefixes: List[NetFlowInetPrefix] = List()
+  protected var thruputPrefixes: List[NetFlowInetPrefix] = List()
 
-  private val accountPerIP = false
-  private val accountPerIPProto = false
   private var cancellable = Shutdown.schedule()
 
   private var counters = scala.collection.concurrent.TrieMap[(String, String), AtomicLong]()
@@ -97,7 +95,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
         while (it3.hasNext) {
           val prefix = it3.next
           ourFlow = true
-          save(flowPacket, flow, flow.srcAddress, 'in, prefix.toString)
+          save(flowPacket, flow, flow.srcAddress, 'in, prefix)
         }
 
         // dst - out
@@ -105,7 +103,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
         while (it3.hasNext) {
           val prefix = it3.next
           ourFlow = true
-          save(flowPacket, flow, flow.dstAddress, 'out, prefix.toString)
+          save(flowPacket, flow, flow.dstAddress, 'out, prefix)
         }
 
         // thruput - in
@@ -166,10 +164,12 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   }
 
   // Handle NetFlowData
-  def save(flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: Symbol, prefix: String) {
+  def save(flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: Symbol, prefix: NetFlowInetPrefix) {
     val dir = direction.name
     val ip = localAddress.getHostAddress
     val prot = flow.proto
+    val port = flow.dstPort
+    //val port = if (direction == 'in) flow.dstPort else flow.srcPort
 
     val date = flowPacket.date
     val year = date.getYear.toString
@@ -191,30 +191,41 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     account("pkts:" + dir, flow.pkts)
 
     // Account per Sender with Protocols
-    if (accountPerIPProto) {
-      account("bytes:" + dir + ":" + prot, flow.bytes)
-      account("pkts:" + dir + ":" + prot, flow.pkts)
+    if (prefix.accountPerIPDetails) {
+      account("bytes:" + dir + ":proto:" + prot, flow.bytes)
+      account("pkts:" + dir + ":proto:" + prot, flow.pkts)
+
+      account("bytes:" + dir + ":port:" + port, flow.bytes)
+      account("pkts:" + dir + ":port:" + port, flow.pkts)
     }
+
+    val pfx = prefix.prefix.toString
 
     // Account per Sender and Network
-    account("bytes:" + dir + ":" + prefix, flow.bytes)
-    account("pkts:" + dir + ":" + prefix, flow.pkts)
+    account("bytes:" + dir + ":" + pfx, flow.bytes)
+    account("pkts:" + dir + ":" + pfx, flow.pkts)
 
     // Account per Sender and Network with Protocols
-    if (accountPerIPProto) {
-      account("bytes:" + dir + ":" + prefix + ":" + prot, flow.bytes)
-      account("pkts:" + dir + ":" + prefix + ":" + prot, flow.pkts)
+    if (prefix.accountPerIPDetails) {
+      account("bytes:" + dir + ":" + pfx + ":proto:" + prot, flow.bytes)
+      account("pkts:" + dir + ":" + pfx + ":proto:" + prot, flow.pkts)
+
+      account("bytes:" + dir + ":" + pfx + ":port:" + port, flow.bytes)
+      account("pkts:" + dir + ":" + pfx + ":port:" + port, flow.pkts)
     }
 
-    if (accountPerIP) {
+    if (prefix.accountPerIP) {
       // Account per Sender and IP
       account("bytes:" + dir + ":" + ip, flow.bytes)
       account("pkts:" + dir + ":" + ip, flow.pkts)
 
       // Account per Sender and IP with Protocols
-      if (accountPerIPProto) {
-        account("bytes:" + dir + ":" + ip + ":" + prot, flow.bytes)
-        account("pkts:" + dir + ":" + ip + ":" + prot, flow.pkts)
+      if (prefix.accountPerIPDetails) {
+        account("bytes:" + dir + ":" + ip + ":proto:" + prot, flow.bytes)
+        account("pkts:" + dir + ":" + ip + ":proto:" + prot, flow.pkts)
+
+        account("bytes:" + dir + ":" + ip + ":port:" + port, flow.bytes)
+        account("pkts:" + dir + ":" + ip + ":port:" + port, flow.pkts)
       }
     }
   }

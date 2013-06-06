@@ -5,10 +5,14 @@ import io.wasted.util._
 
 import scala.collection.immutable.HashMap
 import scala.util.{ Try, Success, Failure }
-import java.net.InetSocketAddress
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
+
+case class NetFlowInetPrefix(prefix: InetPrefix, accountPerIP: Boolean, accountPerIPDetails: Boolean) {
+  def contains(addr: InetAddress) = prefix.contains(addr)
+}
 
 object Storage extends Logger {
 
@@ -42,18 +46,20 @@ trait Storage extends Logger {
    */
   def countDatagram(date: DateTime, sender: InetSocketAddress, kind: String, passedFlows: Int = 0): Unit
 
-  def getThruputRecipients(sender: InetSocketAddress, prefix: InetPrefix): List[ThruputRecipient]
+  def getThruputRecipients(sender: InetSocketAddress, prefix: NetFlowInetPrefix): List[ThruputRecipient]
 
-  def getPrefixes(sender: InetSocketAddress): List[InetPrefix]
-  def getThruputPrefixes(sender: InetSocketAddress): List[InetPrefix]
+  def getPrefixes(sender: InetSocketAddress): List[NetFlowInetPrefix]
+  def getThruputPrefixes(sender: InetSocketAddress): List[NetFlowInetPrefix]
 
   protected def getPrefix(network: String) = {
     val split = network.split("/")
-    if (split.length == 2) {
-      val prefix = split.head
-      val prefixLen = split.last
+    if (split.length >= 2) {
+      val prefix = split(0)
+      val prefixLen = split(1)
+      val accountPerIP = Tryo(split(2).toBoolean) getOrElse false
+      val accountPerIPDetails = Tryo(split(3).toBoolean) getOrElse false
       Try(InetPrefix(java.net.InetAddress.getByName(prefix), prefixLen.toInt)) match {
-        case Success(a: InetPrefix) => Some(a)
+        case Success(a: InetPrefix) => Some(NetFlowInetPrefix(a, accountPerIP, accountPerIPDetails))
         case Failure(f) => warn("Unable to parse prefix: " + network); None
       }
     } else { warn("Unable to parse prefix: " + network); None }
