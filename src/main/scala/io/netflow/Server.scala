@@ -18,7 +18,7 @@ object Server extends App with Logger { PS =>
     Service.start()
 
     val eventLoop = new NioEventLoopGroup
-    def startListeningFor(what: String, config: String, default: List[String], handler: ChannelHandler) {
+    def startListeningFor(what: String, config: String, default: List[String], handler: ChannelHandler): Boolean = {
       val conf = Config.getStringList(config, default).map(_.split(":"))
       val listeners = conf.map(l => new java.net.InetSocketAddress(l.head, l.last.toInt))
 
@@ -34,20 +34,18 @@ object Server extends App with Logger { PS =>
             .option[java.lang.Integer](ChannelOption.UDP_RECEIVE_PACKET_SIZE, 1500)
           srv.bind().sync
           info("Listening for %s on %s:%s", what, addr.getAddress.getHostAddress, addr.getPort)
-          srv
         }
       } match {
-        case Success(v) =>
+        case Success(v) => true
         case Failure(f) =>
           error("Unable to bind for %s to that ip:port combination. Check your configuration.".format(what))
           debug(f)
-          stop(eventLoop)
-          return
+          false
       }
     }
 
-    startListeningFor("NetFlow", "netflow.listen", List("0.0.0.0:2055"), NetFlowHandler)
-    startListeningFor("sFlow", "sflow.listen", List("0.0.0.0:6343"), SFlowHandler)
+    if (!startListeningFor("NetFlow", "netflow.listen", List("0.0.0.0:2055"), NetFlowHandler)) return stop(eventLoop)
+    if (!startListeningFor("sFlow", "sflow.listen", List("0.0.0.0:6343"), SFlowHandler)) return stop(eventLoop)
 
     info("Ready")
 
