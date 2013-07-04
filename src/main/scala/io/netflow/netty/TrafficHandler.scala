@@ -11,7 +11,7 @@ import io.netty.channel.socket.DatagramPacket
 import scala.util.{ Try, Success, Failure }
 import java.net.InetSocketAddress
 
-abstract class TrafficHandler extends ChannelInboundMessageHandlerAdapter[DatagramPacket] with Logger {
+abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket] with Logger {
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: Throwable) {
     e.printStackTrace()

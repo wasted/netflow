@@ -34,12 +34,11 @@ object Server extends App with Logger { PS =>
       Try {
         listeners.foreach { addr =>
           val srv = new Bootstrap
-          val chan = srv.group(eventLoop)
+          srv.group(eventLoop)
             .localAddress(addr)
             .channel(classOf[NioDatagramChannel])
             .handler(handler)
             .option[java.lang.Integer](ChannelOption.SO_RCVBUF, 1500)
-            .option[java.lang.Integer](ChannelOption.UDP_RECEIVE_PACKET_SIZE, 1500)
           srv.bind().sync
           info("Listening for %s on %s:%s", what, addr.getAddress.getHostAddress, addr.getPort)
         }
