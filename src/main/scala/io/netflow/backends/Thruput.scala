@@ -1,10 +1,8 @@
 package io.netflow.backends
 
 import io.netflow.flows._
-import io.wasted.util._
 import io.wasted.util.http._
 
-import io.netty.channel.Channel
 import java.net.{ InetSocketAddress, InetAddress }
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap

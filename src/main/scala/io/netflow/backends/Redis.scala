@@ -8,7 +8,6 @@ import com.lambdaworks.redis._
 import scala.collection.immutable.HashMap
 import scala.collection.JavaConverters._
 
-import io.netty.util.CharsetUtil
 import java.util.UUID
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicLong

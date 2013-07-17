@@ -2,16 +2,21 @@ package io.netflow.actors
 
 import io.netflow.flows._
 import io.netflow.backends._
-import io.netflow.netty._
 import io.wasted.util._
 
 import java.net.{ InetAddress, InetSocketAddress }
 import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
-import scala.util.{ Try, Success, Failure }
+import scala.util.{ Success, Failure }
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
+
+object TrafficType extends Enumeration {
+  val Inbound = Value("in")
+  val Outbound = Value("out")
+  val InboundLocal = Value("in:local")
+  val OutboundLocal = Value("out:local")
+}
 
 class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Wactor with ThruputSender {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
@@ -84,39 +89,44 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     val it1 = flowPacket.flows.iterator
     while (it1.hasNext) it1.next() match {
       case tmpl: cflow.Template =>
-      // TODO Report it through thruput?
-
       /* Handle NetFlowData */
       case flow: NetFlowData[_] =>
         var ourFlow = false
 
-        // src - in
-        var it3 = findNetworks(flow.srcAddress).iterator
+        val srcNetworks = findNetworks(flow.srcAddress)
+        val dstNetworks = findNetworks(flow.dstAddress)
+
+        // src - out
+        var it3 = srcNetworks.iterator
         while (it3.hasNext) {
-          val prefix = it3.next
+          val prefix = it3.next()
           ourFlow = true
-          save(flowPacket, flow, flow.srcAddress, 'in, prefix)
+          // If it is *NOT* *to* another network we monitor
+          val trafficType = if (dstNetworks.length == 0) TrafficType.Outbound else TrafficType.OutboundLocal
+          save(flowPacket, flow, flow.srcAddress, trafficType, prefix)
         }
 
-        // dst - out
-        it3 = findNetworks(flow.dstAddress).iterator
+        // dst - in
+        it3 = dstNetworks.iterator
         while (it3.hasNext) {
-          val prefix = it3.next
+          val prefix = it3.next()
           ourFlow = true
-          save(flowPacket, flow, flow.dstAddress, 'out, prefix)
+          // If it is *NOT* *to* another network we monitor
+          val trafficType = if (srcNetworks.length == 0) TrafficType.Inbound else TrafficType.InboundLocal
+          save(flowPacket, flow, flow.dstAddress, trafficType, prefix)
         }
 
         // thruput - in
         it3 = findThruputNetworks(flow.srcAddress).iterator
         while (it3.hasNext) {
-          val prefix = it3.next
+          val prefix = it3.next()
           thruput(sender, flow, prefix, flow.dstAddress)
         }
 
         // thruput - out
         it3 = findThruputNetworks(flow.dstAddress).iterator
         while (it3.hasNext) {
-          val prefix = it3.next
+          val prefix = it3.next()
           thruput(sender, flow, prefix, flow.srcAddress)
         }
 
@@ -164,8 +174,8 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   }
 
   // Handle NetFlowData
-  def save(flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: Symbol, prefix: NetFlowInetPrefix) {
-    val dir = direction.name
+  def save(flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: TrafficType.Value, prefix: NetFlowInetPrefix) {
+    val dir = direction.toString
     val ip = localAddress.getHostAddress
     val prot = flow.proto
     val port = flow.dstPort

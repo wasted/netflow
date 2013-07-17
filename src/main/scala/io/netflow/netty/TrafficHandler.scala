@@ -8,7 +8,7 @@ import io.netty.buffer._
 import io.netty.channel._
 import io.netty.channel.socket.DatagramPacket
 
-import scala.util.{ Try, Success, Failure }
+import scala.util.{ Try, Failure }
 import java.net.InetSocketAddress
 
 abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket] with Logger {
@@ -17,7 +17,7 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     e.printStackTrace()
   }
 
-  override def messageReceived(ctx: ChannelHandlerContext, msg: DatagramPacket) {
+  override def channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
     val sender = msg.sender
 
     // The first two bytes contain the NetFlow version and first four bytes the sFlow version

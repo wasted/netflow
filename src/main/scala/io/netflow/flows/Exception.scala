@@ -1,7 +1,5 @@
 package io.netflow.flows
 
-import java.net.InetSocketAddress
-
 // Since these expected errors are quite easy to distinguish and locate, we don't need expensive stacktraces
 class FlowException(msg: String) extends Exception(msg) with util.control.NoStackTrace
 

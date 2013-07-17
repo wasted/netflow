@@ -8,7 +8,6 @@ import java.net.InetSocketAddress
 
 import scala.language.postfixOps
 import scala.util.{ Try, Failure, Success }
-import scala.concurrent.duration._
 
 /**
  * NetFlow Version 10 Packet - FlowSet DataSet
@@ -194,7 +193,6 @@ case class NetFlowV10Data(val sender: InetSocketAddress, val length: Int, val te
 }
 
 object NetFlowV10Option extends Logger {
-  import TemplateFields._
 
   /**
    * Parse a Version 10 Option Flow
