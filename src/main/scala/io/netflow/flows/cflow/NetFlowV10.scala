@@ -17,21 +17,17 @@ import scala.util.{ Try, Failure, Success }
  * *-------*---------------*------------------------------------------------------*
  * | 0-1   | version       | The version of NetFlow records exported 009          |
  * *-------*---------------*------------------------------------------------------*
- * | 2-3   | count         | Number of flows exported in this packet (1-30)       |
+ * | 2-3   | length        | Length of the current Flow                           |
  * *-------*---------------*------------------------------------------------------*
- * | 4-7   | SysUptime     | Current time in milli since the export device booted |
+ * | 4-7   | exportTime    | Current time in milli since epoch when flow shipped  |
  * *-------*---------------*------------------------------------------------------*
- * | 8-11  | unix_secs     | Current count of seconds since 0000 UTC 1970         |
+ * | 8-11  | PackageSeq    | Sequence counter of total flows exported             |
  * *-------*---------------*------------------------------------------------------*
- * | 12-15 | PackageSeq    | Sequence counter of total flows exported             |
- * *-------*---------------*------------------------------------------------------*
- * | 16-19 | Source ID     | engine type+engine id                                |
- * *-------*---------------*------------------------------------------------------*
- * | 20-   | others        | Unused (zero) bytes                                  |
+ * | 12-15 | Observ.Dom    | ObservationDomain ID                                 |
  * *-------*---------------*------------------------------------------------------*
  */
 object NetFlowV10Packet extends Logger {
-  private val headerSize = 20
+  private val headerSize = 16
 
   /**
    * Parse a v10 Flow Packet
@@ -50,11 +46,13 @@ object NetFlowV10Packet extends Logger {
     if (packet.length < headerSize)
       return Failure(new IncompleteFlowPacketHeaderException)
 
-    packet.count = buf.getInteger(2, 2).toInt
-    packet.uptime = buf.getInteger(4, 4) / 1000
-    packet.date = new org.joda.time.DateTime(buf.getInteger(8, 4) * 1000)
-    packet.flowSequence = buf.getInteger(12, 4)
-    packet.sourceId = buf.getInteger(16, 4)
+    val length = buf.getInteger(2, 2).toInt
+    if (packet.length < length) return Failure(new ShortFlowPacketException)
+
+    //packet.count = buf.getInteger(2, 2).toInt
+    packet.date = new org.joda.time.DateTime(buf.getInteger(4, 4) * 1000)
+    packet.flowSequence = buf.getInteger(8, 4)
+    packet.observationId = buf.getInteger(12, 4)
 
     var flowsetCounter = 0
     var packetOffset = headerSize
@@ -62,7 +60,7 @@ object NetFlowV10Packet extends Logger {
     // we use a mutable array here in order not to bash the garbage collector so badly
     // because whenever we append something to our vector, the old vectors need to get GC'd
     val flows = scala.collection.mutable.ArrayBuffer[Flow[_]]()
-    while (flowsetCounter < packet.count && packetOffset < packet.length) {
+    while (packetOffset < packet.length) {
       val flowsetId = buf.getInteger(packetOffset, 2).toInt
       val flowsetLength = buf.getInteger(packetOffset + 2, 2).toInt
       if (flowsetLength == 0) return Failure(new IllegalFlowSetLengthException)
@@ -92,9 +90,9 @@ object NetFlowV10Packet extends Logger {
           debug("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           do {
-            val scopeLen = buf.getInteger(templateOffset + 2, 2).toInt
-            val optionLen = buf.getInteger(templateOffset + 4, 2).toInt
-            val templateSize = scopeLen + optionLen + 6
+            val fieldCount = buf.getInteger(templateOffset + 2, 2).toInt
+            val scopeFieldCount = buf.getInteger(templateOffset + 4, 2).toInt
+            val templateSize = fieldCount * 4
             if (templateOffset + templateSize < packet.length) {
               val buffer = buf.slice(templateOffset, templateSize)
               NetFlowV10Template(sender, buffer, flowsetId) match {
@@ -140,7 +138,7 @@ object NetFlowV10Packet extends Logger {
 case class NetFlowV10Packet(sender: InetSocketAddress, length: Int) extends FlowPacket {
   def version = "NetFlowV10 Packet"
   var flowSequence: Long = -1L
-  var sourceId: Long = -1L
+  var observationId: Long = -1L
 }
 
 object NetFlowV10Data extends Logger {
@@ -156,8 +154,8 @@ object NetFlowV10Data extends Logger {
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf, template: NetFlowV10Template, uptime: Long): Try[NetFlowV10Data] = Try[NetFlowV10Data] {
     val flow = NetFlowV10Data(sender, buf.readableBytes(), template.id)
-    flow.srcPort = buf.getInteger(template, L4_SRC_PORT).get.toInt
-    flow.dstPort = buf.getInteger(template, L4_DST_PORT).get.toInt
+    flow.srcPort = (buf.getInteger(template, L4_SRC_PORT) getOrElse -1L).toInt
+    flow.dstPort = (buf.getInteger(template, L4_DST_PORT) getOrElse -1L).toInt
 
     flow.srcAS = (buf.getInteger(template, SRC_AS) getOrElse -1L).toInt
     flow.dstAS = (buf.getInteger(template, DST_AS) getOrElse -1L).toInt
