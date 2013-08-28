@@ -12,6 +12,7 @@
 
   <logger name="Inet4Prefix" level="WARN" />
   <logger name="Inet6Prefix" level="WARN" />
+  <logger name="80.83.191.193/0" level="DEBUG" />
 
   <logger name="io.netty.channel.socket.nio.NioEventLoop" level="WARN" /> <!-- hide nio selector bug messages -->
 

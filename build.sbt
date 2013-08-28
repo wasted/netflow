@@ -26,7 +26,7 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "io.wasted" %% "wasted-util" % scala.io.Source.fromFile("version").mkString.trim,
+  "io.wasted" %% "wasted-util" % "0.6.1",
   "org.javassist" % "javassist" % "3.17.1-GA",
   "ch.qos.logback" % "logback-classic" % "1.0.7" % "compile",
   "org.specs2" %% "specs2" % "1.13" % "test",
