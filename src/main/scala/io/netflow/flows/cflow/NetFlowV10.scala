@@ -71,7 +71,9 @@ object NetFlowV10Packet extends Logger {
           var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           debug("Template FlowSet (" + flowsetId + ") from " + senderIP + "/" + senderPort)
           do {
+            val templateId = buf.getUnsignedShort(templateOffset)
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
+            error(s"id: $templateId -> count: $fieldCount")
             val templateSize = fieldCount * 4 + 4
             if (templateOffset + templateSize < packet.length) {
               val buffer = buf.slice(templateOffset, templateSize)
