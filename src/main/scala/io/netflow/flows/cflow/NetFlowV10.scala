@@ -1,5 +1,6 @@
 package io.netflow.flows.cflow
 
+import io.netflow.NetFlowConfig
 import io.netflow.flows._
 import io.wasted.util._
 
@@ -145,7 +146,7 @@ case class NetFlowV10Packet(sender: InetSocketAddress, length: Int) extends Flow
 
 object NetFlowV10Data extends Logger {
   import TemplateFields._
-  val parseExtraFields = Config.getBool("netflow.extraFields", true)
+  def parseExtraFields = NetFlowConfig.values.extraFields
 
   /**
    * Parse a Version 10 Flow

@@ -8,24 +8,26 @@ import io.netty.channel._
 import io.netty.channel.nio._
 import io.netty.channel.socket.nio._
 
+import java.net.InetSocketAddress
 import scala.util.{ Try, Success, Failure }
 
-object Server extends App with Logger { PS =>
-  override def main(args: Array[String]) { start() }
+private[netflow] object Server extends Logger { PS =>
+  private var eventLoop: Option[NioEventLoopGroup] = None
 
   def start() {
+    if (eventLoop.isDefined) return
     info("Starting up netflow.io version %s", io.netflow.lib.BuildInfo.version)
     Service.start()
 
-    val eventLoop = new NioEventLoopGroup
-    def startListeningFor(what: String, config: String, default: List[String], handler: ChannelHandler): Boolean = {
-      val listeners = Config.getInetAddrList(config, default)
+    val el = new NioEventLoopGroup
+    eventLoop = Some(el)
+    def startListeningFor(what: String, listeners: Seq[InetSocketAddress], handler: ChannelHandler): Boolean = {
 
       // Refresh filters from Backend
       Try {
         listeners.foreach { addr =>
           val srv = new Bootstrap
-          srv.group(eventLoop)
+          srv.group(el)
             .localAddress(addr)
             .channel(classOf[NioDatagramChannel])
             .handler(handler)
@@ -42,22 +44,23 @@ object Server extends App with Logger { PS =>
       }
     }
 
-    if (!startListeningFor("NetFlow", "netflow.listen", List("0.0.0.0:2055"), NetFlowHandler)) return stop(eventLoop)
-    if (!startListeningFor("sFlow", "sflow.listen", List("0.0.0.0:6343"), SFlowHandler)) return stop(eventLoop)
+    if (!startListeningFor("NetFlow", NetFlowConfig.values.netflows, NetFlowHandler)) return stop()
+    if (!startListeningFor("sFlow", NetFlowConfig.values.sflows, SFlowHandler)) return stop()
 
     info("Ready")
 
     // Add Shutdown Hook to cleanly shutdown Netty
     Runtime.getRuntime.addShutdownHook(new Thread {
-      override def run() { PS.stop(eventLoop) }
+      override def run() { PS.stop() }
     })
   }
 
-  private def stop(eventLoop: NioEventLoopGroup) {
+  def stop() {
     info("Shutting down")
 
     // Shut down all event loops to terminate all threads.
-    eventLoop.shutdownGracefully()
+    eventLoop.map(_.shutdownGracefully())
+    eventLoop = None
     Service.stop()
     info("Shutdown complete")
   }

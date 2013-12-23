@@ -1,5 +1,6 @@
 package io.netflow.backends
 
+import io.netflow.NetFlowConfig
 import io.netflow.flows._
 import io.wasted.util._
 
@@ -10,26 +11,28 @@ import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
 
-case class NetFlowInetPrefix(prefix: InetPrefix, accountPerIP: Boolean, accountPerIPDetails: Boolean) {
+private[netflow] case class NetFlowInetPrefix(prefix: InetPrefix, accountPerIP: Boolean, accountPerIPDetails: Boolean) {
   def contains(addr: InetAddress) = prefix.contains(addr)
 }
 
-object Storage extends Logger {
+private[netflow] object Storage extends Logger {
 
-  private val host = Config.getString("redis.host", "127.0.0.1")
-  private val port = Config.getInt("redis.port", 6379)
-  private val maxConns = Config.getInt("backend.maxConns", 100)
-  val pollInterval = Config.getInt("backend.pollInterval", 10)
-  val flushInterval = Config.getInt("backend.flushInterval", 5)
+  def pollInterval = NetFlowConfig.values.pollInterval
+  def flushInterval = NetFlowConfig.values.flushInterval
 
-  private val newConnect = () => new Redis(host, port)
+  private val redisPool = new PooledResource[Redis](() => new Redis, NetFlowConfig.values.redis.maxConns)
 
-  private val pool = new PooledResource[Storage](newConnect, maxConns)
-  def start(): Option[Storage] = pool.get()
-  def stop(c: Storage) { pool.release(c) }
+  def start(): Option[Storage] = NetFlowConfig.values.storage match {
+    case "redis" => redisPool.get()
+    case "cassandra" => Some(Cassandra)
+  }
+  def stop(c: Storage): Unit = c match {
+    case a: Redis => redisPool.release(a)
+    case Cassandra => // we do not need to release anything
+  }
 }
 
-trait Storage extends Logger {
+private[netflow] trait Storage extends Logger {
   def save(flowData: Map[(String, String), AtomicLong], sender: InetSocketAddress): Unit
   def save(template: cflow.Template): Unit
   def ciscoTemplateFields(sender: InetSocketAddress, id: Int): Option[HashMap[String, Int]]

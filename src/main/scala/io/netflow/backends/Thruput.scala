@@ -7,13 +7,13 @@ import java.net.{ InetSocketAddress, InetAddress }
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-case class ThruputRecipient(platform: ThruputPlatform, toUser: Option[String] = None) {
+private[netflow] case class ThruputRecipient(platform: ThruputPlatform, toUser: Option[String] = None) {
   def auth = platform.auth
   def sign = platform.sign
   def url = platform.url
 }
 
-case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
+private[netflow] case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
   val auth = UUID.fromString(authStr)
   val sign = UUID.fromString(signStr)
   val url = new java.net.URL(urlStr)
@@ -28,7 +28,7 @@ case class ThruputPlatform(urlStr: String, authStr: String, signStr: String) {
   }
 }
 
-object ThruputClientManager {
+private[netflow] object ThruputClientManager {
   private val thruputClients = new ConcurrentHashMap[ThruputPlatform, Thruput]()
 
   def get(tp: ThruputPlatform) = Option(thruputClients.get(tp)) match {
@@ -43,7 +43,7 @@ object ThruputClientManager {
   def shutdown(tp: ThruputPlatform): Unit = Option(thruputClients.get(tp)).map(_.shutdown)
 }
 
-trait ThruputSender {
+private[netflow] trait ThruputSender {
   protected def backend: Storage
   protected def thruputPrefixes: List[NetFlowInetPrefix]
 

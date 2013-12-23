@@ -21,13 +21,14 @@ object TrafficType extends Enumeration {
 class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Wactor with ThruputSender {
   override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
   info("Starting for " + loggerName)
+  implicit val wheelTimer = WheelTimer()
   private var senderPrefixes: List[NetFlowInetPrefix] = List()
   protected var thruputPrefixes: List[NetFlowInetPrefix] = List()
 
   private var cancellable = Shutdown.schedule()
 
   private var counters = scala.collection.concurrent.TrieMap[(String, String), AtomicLong]()
-  private def hincrBy(str1: String, str2: String, inc: Long) = {
+  private def hincrBy(str1: String, str2: String, inc: Long) = synchronized {
     val kv = (str1, str2)
     counters.get(kv) match {
       case Some(al) => al.addAndGet(inc)

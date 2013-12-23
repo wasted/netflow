@@ -9,9 +9,13 @@ version := scala.io.Source.fromFile("version").mkString.trim
 
 scalaVersion := "2.10.2"
 
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-optimise", "-Yinline-warnings")
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-Yinline-warnings", "-Xcheckinit", "-encoding", "utf8", "-feature")
 
-mainClass in assembly := Some("io.netflow.Server")
+scalacOptions ++= Seq("-language:higherKinds", "-language:postfixOps", "-language:implicitConversions", "-language:reflectiveCalls", "-language:existentials")
+
+javacOptions ++= Seq("-target", "1.7", "-source", "1.7", "-Xlint:deprecation")
+
+mainClass in assembly := Some("io.netflow.Node")
 
 jarName in assembly := "netflow-" + scala.io.Source.fromFile("version").mkString.trim + ".jar"
 
@@ -25,13 +29,17 @@ resolvers ++= Seq(
   "Java.net Maven2 Repository" at "http://download.java.net/maven/2/"
 )
 
-libraryDependencies ++= Seq(
-  "io.wasted" %% "wasted-util" % "0.7.6",
-  "org.javassist" % "javassist" % "3.17.1-GA",
-  "ch.qos.logback" % "logback-classic" % "1.0.7" % "compile",
-  "org.specs2" %% "specs2" % "1.13" % "test",
-  "com.lambdaworks" % "lettuce" % "2.3.0"
-)
+libraryDependencies ++= {
+  val astyanaxVersion = "1.56.44"
+  Seq(
+    "io.wasted" %% "wasted-util" % "0.7.6",
+    "joda-time" % "joda-time" % "2.3",
+    "org.joda" % "joda-convert" % "1.4",
+    "com.lambdaworks" % "lettuce" % "2.3.0",
+    "com.datastax.cassandra" % "cassandra-driver-core" % "2.0.0-rc2",
+    "org.specs2" %% "specs2" % "2.2" % "test"
+  )
+}
 
 publishTo := Some("wasted.io/repo" at "http://repo.wasted.io/mvn")
 
