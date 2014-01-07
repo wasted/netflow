@@ -1,13 +1,10 @@
-package io.netflow
+package io.netflow.lib
 
 import scala.concurrent.duration._
-import io.netflow.lib._
-import io.wasted.util.{ Tryo, Config, Logger }
-import java.io.File
-import java.util.UUID
+import io.wasted.util.{ Config, Logger }
 import java.net.InetSocketAddress
 
-private[netflow] object NetFlowConfig extends Logger {
+private[netflow] object NodeConfig extends Logger {
 
   case class ServerConfig(
     statuslog: Duration,
@@ -27,7 +24,8 @@ private[netflow] object NetFlowConfig extends Logger {
     maxConns: Int)
 
   case class CassandraConfig(
-    hosts: Seq[String])
+    hosts: Seq[String],
+    keyspace: String)
 
   private var config: ServerConfig = load()
 
@@ -38,6 +36,7 @@ private[netflow] object NetFlowConfig extends Logger {
       port = Config.getInt("server.redis.port", 6379))
 
     val cassandra = CassandraConfig(
+      keyspace = Config.getString("server.cassandra.keyspace", "netflow"),
       hosts = Config.getStringList("server.cassandra.hosts", List("localhost:9160")))
 
     val server = ServerConfig(
@@ -58,7 +57,7 @@ private[netflow] object NetFlowConfig extends Logger {
     server
   }
 
-  def reload(): Unit = synchronized()
+  def reload(): Unit = synchronized(config = load())
 
   def values = config
 

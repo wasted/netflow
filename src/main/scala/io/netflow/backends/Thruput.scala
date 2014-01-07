@@ -1,11 +1,11 @@
 package io.netflow.backends
 
-import io.netflow.flows._
 import io.wasted.util.http._
 
 import java.net.{ InetSocketAddress, InetAddress }
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import io.netflow.lib.{ NetFlowInetPrefix, Storage, Flow }
 
 private[netflow] case class ThruputRecipient(platform: ThruputPlatform, toUser: Option[String] = None) {
   def auth = platform.auth
@@ -34,13 +34,15 @@ private[netflow] object ThruputClientManager {
   def get(tp: ThruputPlatform) = Option(thruputClients.get(tp)) match {
     case Some(tp) => Some(tp)
     case None =>
-      val thruputClient = new Thruput(tp.url.toURI, tp.auth, tp.sign)
-      thruputClient.connect
-      thruputClients.put(tp, thruputClient)
-      Some(thruputClient)
+      synchronized {
+        val thruputClient = new Thruput(tp.url.toURI, tp.auth, tp.sign)
+        thruputClient.connect()
+        thruputClients.put(tp, thruputClient)
+        Some(thruputClient)
+      }
   }
 
-  def shutdown(tp: ThruputPlatform): Unit = Option(thruputClients.get(tp)).map(_.shutdown)
+  def shutdown(tp: ThruputPlatform): Unit = Option(thruputClients.get(tp)).map(_.shutdown())
 }
 
 private[netflow] trait ThruputSender {

@@ -1,8 +1,8 @@
 package io.netflow.flows.cflow
 
-import io.netflow.flows._
-
+import io.netflow.lib._
 import io.netty.buffer._
+
 import java.net.InetSocketAddress
 import scala.util.{ Try, Failure }
 

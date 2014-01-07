@@ -1,5 +1,6 @@
 package io.netflow.actors
 
+import io.netflow.lib._
 import io.netflow.flows._
 import io.netflow.backends._
 import io.wasted.util._
@@ -8,8 +9,8 @@ import java.net.{ InetAddress, InetSocketAddress }
 import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
-import scala.util.{ Success, Failure }
 import scala.concurrent.duration._
+import scala.util.{ Failure, Success }
 
 object TrafficType extends Enumeration {
   val Inbound = Value("in")
@@ -28,27 +29,29 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   private var cancellable = Shutdown.schedule()
 
   private var counters = scala.collection.concurrent.TrieMap[(String, String), AtomicLong]()
-  private def hincrBy(str1: String, str2: String, inc: Long) = synchronized {
+  private def hincrBy(str1: String, str2: String, inc: Long) = {
     val kv = (str1, str2)
     counters.get(kv) match {
       case Some(al) => al.addAndGet(inc)
-      case None => counters ++= Map(kv -> new AtomicLong(inc))
+      case None => synchronized {
+        counters ++= Map(kv -> new AtomicLong(inc))
+      }
     }
   }
 
   def receive = {
     case Shutdown =>
-      io.netflow.Service.removeActorFor(sender)
+      Service.removeActorFor(sender)
       backend.stop()
       cflow.NetFlowV9Template.clear(sender)
       cflow.NetFlowV10Template.clear(sender)
       this ! Wactor.Die
     case tmpl: cflow.Template => backend.save(tmpl)
     case Success(fp: FlowPacket) =>
-      Shutdown.avoid
+      Shutdown.avoid()
       save(fp)
     case Failure(e) =>
-      Shutdown.avoid
+      Shutdown.avoid()
       info("Unsupported FlowPacket received: %s", e)
       backend.countDatagram(new DateTime, sender, "bad:flow")
     case Flush =>
@@ -58,7 +61,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   private case object Shutdown {
     def schedule() = scheduleOnce(Shutdown, 5.minutes)
     def avoid() {
-      cancellable.cancel
+      cancellable.cancel()
       cancellable = schedule()
     }
   }
@@ -150,7 +153,7 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
     val packetInfoStr = flowPacket.version.replaceAll("Packet", "-") + " length: " + flowPacket.length + flowSeq
     val passedFlowsStr = flowPacket.flows.length + "/" + flowPacket.count + " passed"
 
-    var recvdFlows = flowPacket.flows.groupBy(_.version)
+    val recvdFlows = flowPacket.flows.groupBy(_.version)
     val recvdFlowsStr = recvdFlows.toList.sortBy(_._1).map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).mkString(", ")
 
     // log an elaborate string to loglevel info describing this packet.

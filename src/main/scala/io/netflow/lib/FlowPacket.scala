@@ -1,4 +1,4 @@
-package io.netflow.flows
+package io.netflow.lib
 
 import java.net.{ InetAddress, InetSocketAddress }
 

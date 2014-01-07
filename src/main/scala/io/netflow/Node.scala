@@ -1,6 +1,5 @@
 package io.netflow
 
-import lib._
 import io.wasted.util._
 import io.netty.handler.logging.LoggingHandler
 

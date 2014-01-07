@@ -1,7 +1,6 @@
 package io.netflow.backends
 
 import io.netflow.flows._
-import io.netflow.NetFlowConfig
 import io.wasted.util._
 
 import org.joda.time.DateTime
@@ -12,23 +11,43 @@ import java.util.UUID
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicLong
 import com.datastax.driver.core._
+import io.netflow.lib.{ NetFlowInetPrefix, Storage, NodeConfig }
 
-private[netflow] object Cassandra extends Storage {
+private[netflow] class Cassandra extends Storage {
+  def keyspace = NodeConfig.values.cassandra
   private val client = {
-    val hosts = NetFlowConfig.values.cassandra.hosts.mkString(",")
+    val hosts = NodeConfig.values.cassandra.hosts.mkString(",")
     debug(s"Opening new connection to $hosts")
     Cluster.builder().addContactPoint(hosts).build()
   }
 
   private val metadata = {
-    val md = client.getMetadata()
+    val md = client.getMetadata
     md.getAllHosts.asScala.foreach { host =>
-      debug("Datacenter: %s, Host: %s, Rack: %s", host.getDatacenter(), host.getAddress(), host.getRack())
+      debug("Datacenter: %s, Host: %s, Rack: %s", host.getDatacenter, host.getAddress, host.getRack)
     }
     md
   }
 
-  private val session = client.connect()
+  private val structure = {
+    val columns = for {
+      accType <- List("bytes", "pkts")
+      direction <- List("", "_in", "_out")
+      protocol <- "" :: (0 to 255).toList
+    } yield s"$accType$direction$protocol counter"
+    columns.mkString(", ")
+  }
+
+  private val session = {
+    val session = client.connect()
+    session.execute("CREATE KEYSPACE %s WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};", keyspace)
+    session.execute("USE %s;", keyspace)
+    session.execute("CREATE TABLE prefixes (id uuid, name text, addrs set<inet>, PRIMARY KEY (id));")
+    //session.execute("CREATE INDEX ON %s.prefixes (addrs);") not supported yet
+    session.execute("CREATE TABLE cflow_inet (addr inet, time ascii, collector inet, port int, %s, PRIMARY KEY (addr, time));", structure)
+    session.execute("CREATE TABLE cflow_prefix (id uuid, time ascii, %s, PRIMARY KEY (id, time));", structure)
+    session
+  }
 
   def save(flowData: Map[(String, String), AtomicLong], sender: InetSocketAddress) {
     val senderIP = sender.getAddress.getHostAddress

@@ -1,15 +1,12 @@
 package io.netflow.flows.cflow
 
-import io.netflow.flows._
-import io.netflow.backends.Storage
-import io.wasted.util._
-
+import io.wasted.util.Tryo
+import io.netflow.lib._
 import io.netty.buffer._
-
-import scala.collection.immutable.HashMap
 
 import java.net.InetSocketAddress
 import scala.util.{ Try, Failure }
+import scala.collection.immutable.HashMap
 
 abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
   private val cache = scala.collection.concurrent.TrieMap[(InetSocketAddress, Int), T]()

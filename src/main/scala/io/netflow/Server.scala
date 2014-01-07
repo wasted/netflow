@@ -10,6 +10,7 @@ import io.netty.channel.socket.nio._
 
 import java.net.InetSocketAddress
 import scala.util.{ Try, Success, Failure }
+import io.netflow.lib.{ NodeConfig, Service }
 
 private[netflow] object Server extends Logger { PS =>
   private var eventLoop: Option[NioEventLoopGroup] = None
@@ -44,8 +45,8 @@ private[netflow] object Server extends Logger { PS =>
       }
     }
 
-    if (!startListeningFor("NetFlow", NetFlowConfig.values.netflows, NetFlowHandler)) return stop()
-    if (!startListeningFor("sFlow", NetFlowConfig.values.sflows, SFlowHandler)) return stop()
+    if (!startListeningFor("NetFlow", NodeConfig.values.netflows, NetFlowHandler)) return stop()
+    if (!startListeningFor("sFlow", NodeConfig.values.sflows, SFlowHandler)) return stop()
 
     info("Ready")
 

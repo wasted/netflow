@@ -1,7 +1,7 @@
-package io.netflow.backends
+package io.netflow.lib
 
-import io.netflow.NetFlowConfig
 import io.netflow.flows._
+import io.netflow.backends._
 import io.wasted.util._
 
 import scala.collection.immutable.HashMap
@@ -10,6 +10,7 @@ import java.net.{ InetAddress, InetSocketAddress }
 import java.util.concurrent.atomic.AtomicLong
 
 import org.joda.time.DateTime
+import io.netflow.backends.ThruputRecipient
 
 private[netflow] case class NetFlowInetPrefix(prefix: InetPrefix, accountPerIP: Boolean, accountPerIPDetails: Boolean) {
   def contains(addr: InetAddress) = prefix.contains(addr)
@@ -17,18 +18,19 @@ private[netflow] case class NetFlowInetPrefix(prefix: InetPrefix, accountPerIP: 
 
 private[netflow] object Storage extends Logger {
 
-  def pollInterval = NetFlowConfig.values.pollInterval
-  def flushInterval = NetFlowConfig.values.flushInterval
+  def pollInterval = NodeConfig.values.pollInterval
+  def flushInterval = NodeConfig.values.flushInterval
 
-  private val redisPool = new PooledResource[Redis](() => new Redis, NetFlowConfig.values.redis.maxConns)
+  private val cassandraCluster = new Cassandra
+  private val redisPool = new PooledResource[Redis](() => new Redis, NodeConfig.values.redis.maxConns)
 
-  def start(): Option[Storage] = NetFlowConfig.values.storage match {
+  def start(): Option[Storage] = NodeConfig.values.storage match {
     case "redis" => redisPool.get()
-    case "cassandra" => Some(Cassandra)
+    case "cassandra" => Some(cassandraCluster)
   }
   def stop(c: Storage): Unit = c match {
     case a: Redis => redisPool.release(a)
-    case Cassandra => // we do not need to release anything
+    case a: Cassandra => // we do not need to release anything
   }
 }
 

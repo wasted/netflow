@@ -1,14 +1,11 @@
 package io.netflow.flows.cflow
 
-import io.netflow.NetFlowConfig
-import io.netflow.flows._
 import io.wasted.util._
-
+import io.netflow.lib._
 import io.netty.buffer._
-import java.net.InetSocketAddress
 
-import scala.language.postfixOps
-import scala.util.{ Try, Failure, Success }
+import java.net.InetSocketAddress
+import scala.util.{ Try, Success, Failure }
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -112,7 +109,7 @@ object NetFlowV9Packet extends Logger {
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           NetFlowV9Template(sender, flowsetId) match {
             case Some(tmpl) =>
-              val option = (tmpl.flowsetId == 1)
+              val option = tmpl.flowsetId == 1
               var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
               while (recordOffset - packetOffset + tmpl.length <= flowsetLength) {
                 val buffer = buf.slice(recordOffset, tmpl.length)
@@ -146,7 +143,7 @@ case class NetFlowV9Packet(sender: InetSocketAddress, length: Int) extends FlowP
 
 object NetFlowV9Data extends Logger {
   import TemplateFields._
-  def parseExtraFields = NetFlowConfig.values.extraFields
+  def parseExtraFields = NodeConfig.values.extraFields
 
   /**
    * Parse a Version 9 Flow
@@ -184,7 +181,7 @@ object NetFlowV9Data extends Logger {
 
 }
 
-case class NetFlowV9Data(val sender: InetSocketAddress, val length: Int, val template: Int) extends NetFlowData[NetFlowV9Data] {
+case class NetFlowV9Data(sender: InetSocketAddress, length: Int, template: Int) extends NetFlowData[NetFlowV9Data] {
   def version = "NetFlowV9Data " + template
 
   var extraFields = Map[String, Long]()

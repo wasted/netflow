@@ -1,7 +1,6 @@
-package io.netflow
+package io.netflow.lib
 
 import io.netflow.actors._
-import io.netflow.backends._
 import io.wasted.util._
 
 import scala.collection.JavaConversions._
@@ -14,7 +13,7 @@ import java.net.InetSocketAddress
  */
 object Service extends Logger {
   private val senderActors = new ConcurrentHashMap[(String, Int), Wactor.Address]()
-  def findActorFor(osender: InetSocketAddress): Option[Wactor.Address] = {
+  def findActorFor(osender: InetSocketAddress): Option[Wactor.Address] = synchronized {
     val sender = (osender.getAddress.getHostAddress, _: Int)
     Option(senderActors.get(sender(osender.getPort))) orElse Option(senderActors.get(sender(0))) match {
       case Some(actor) => Some(actor)

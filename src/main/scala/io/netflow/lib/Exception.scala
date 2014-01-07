@@ -1,4 +1,4 @@
-package io.netflow.flows
+package io.netflow.lib
 
 // Since these expected errors are quite easy to distinguish and locate, we don't need expensive stacktraces
 class FlowException(msg: String) extends Exception(msg) with util.control.NoStackTrace

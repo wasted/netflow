@@ -5,7 +5,7 @@ import io.netty.buffer._
 import scala.util.{ Try, Success, Failure }
 import java.net.InetAddress
 
-package object flows {
+package object lib {
   import flows.cflow.TemplateFields
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")

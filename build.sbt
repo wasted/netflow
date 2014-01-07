@@ -37,7 +37,7 @@ libraryDependencies ++= {
     "org.joda" % "joda-convert" % "1.4",
     "com.lambdaworks" % "lettuce" % "2.3.0",
     "com.datastax.cassandra" % "cassandra-driver-core" % "2.0.0-rc2",
-    "org.specs2" %% "specs2" % "2.2" % "test"
+    "org.specs2" %% "specs2" % "2.3.6" % "test"
   )
 }
 

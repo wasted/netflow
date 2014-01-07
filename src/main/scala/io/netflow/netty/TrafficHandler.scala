@@ -1,6 +1,5 @@
 package io.netflow.netty
 
-import io.netflow._
 import io.netflow.flows._
 import io.wasted.util._
 
@@ -10,6 +9,7 @@ import io.netty.channel.socket.DatagramPacket
 
 import scala.util.{ Try, Failure }
 import java.net.InetSocketAddress
+import io.netflow.lib.{ UnhandledFlowPacketException, FlowPacket, Service }
 
 abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket] with Logger {
 
@@ -21,8 +21,10 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     val sender = msg.sender
 
     // The first two bytes contain the NetFlow version and first four bytes the sFlow version
-    if (msg.content().readableBytes() < 4)
-      return warn("Unsupported UDP Packet received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
+    if (msg.content().readableBytes() < 4) {
+      warn("Unsupported UDP Packet received from " + sender.getAddress.getHostAddress + "/" + sender.getPort)
+      return
+    }
 
     Service.findActorFor(sender) match {
       case Some(actor) => send(actor, sender, msg.content())

@@ -1,7 +1,6 @@
 package io.netflow.backends
 
 import io.netflow.flows._
-import io.netflow.NetFlowConfig
 import io.wasted.util._
 
 import org.joda.time.DateTime
@@ -12,11 +11,12 @@ import scala.collection.JavaConverters._
 import java.util.UUID
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicLong
+import io.netflow.lib.{ NetFlowInetPrefix, Storage, NodeConfig }
 
 private[netflow] class Redis extends Storage {
   private val client = {
-    val host = NetFlowConfig.values.redis.host
-    val port = NetFlowConfig.values.redis.port
+    val host = NodeConfig.values.redis.host
+    val port = NodeConfig.values.redis.port
     debug(s"Opening new connection to $host:$port")
     new RedisClient(host, port)
   }
