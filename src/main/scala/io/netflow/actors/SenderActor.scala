@@ -12,15 +12,8 @@ import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
-object TrafficType extends Enumeration {
-  val Inbound = Value("in")
-  val Outbound = Value("out")
-  val InboundLocal = Value("in:local")
-  val OutboundLocal = Value("out:local")
-}
-
 class SenderActor(sender: InetSocketAddress, protected val backend: Storage) extends Wactor with ThruputSender {
-  override protected def loggerName = sender.getAddress.getHostAddress + "/" + sender.getPort
+  override protected def loggerName = "redis:" + sender.getAddress.getHostAddress + "/" + sender.getPort
   info("Starting for " + loggerName)
   implicit val wheelTimer = WheelTimer()
   private var senderPrefixes: List[NetFlowInetPrefix] = List()
@@ -86,6 +79,11 @@ class SenderActor(sender: InetSocketAddress, protected val backend: Storage) ext
   }
   this ! Flush
 
+  /* Finders which are happy with the first result */
+  private def isInNetworks(flowAddr: InetAddress) = senderPrefixes.exists(_.contains(flowAddr))
+  private def isInThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.exists(_.contains(flowAddr))
+
+  /* Filters to get a list of prefixes that match */
   private def findNetworks(flowAddr: InetAddress) = senderPrefixes.filter(_.contains(flowAddr))
   private def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
 

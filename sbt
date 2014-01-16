@@ -5,9 +5,9 @@ root=$(
 	pwd
 )
 
-sbtver=0.12.2
+sbtver=0.13.1
 sbtjar=sbt-launch.jar
-sbtsum=d523ab71b5d2bcaead80d21d0af79361
+sbtsum=79e367c11fc2294f865c6ecc47b8886c
 
 download() {
 	echo "downloading ${sbtjar}" 1>&2
