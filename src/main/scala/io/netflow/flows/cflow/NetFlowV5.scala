@@ -62,7 +62,7 @@ object NetFlowV5Packet {
     // we use a mutable array here in order not to bash the garbage collector so badly
     // because whenever we append something to our vector, the old vectors need to get GC'd
     val flows = scala.collection.mutable.ArrayBuffer[Flow[_]]()
-    for (i <- 0 to packet.count) NetFlowV5(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).foreach(flows += _)
+    for (i <- 0 to (packet.count - 1)) NetFlowV5(sender, buf.slice(headerSize + (i * flowSize), flowSize), packet.uptime).foreach(flows += _)
     packet.flows = flows.toVector
     packet
   }
