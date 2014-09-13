@@ -146,7 +146,7 @@ sadd sender:10.0.0.2/0 192.168.0.0/24
 sadd sender:10.0.0.2/0 2001:db8::/32
 ```
 
-However, this comes with the downside that your NetFlow sender/exporter can only have one exporting process. While this is not a problem with Juniper, Cisco or Routers in general, **this is inmportant** if you run a NetFlow Aggregator/Collector-Redistributor.
+However, this comes with the downside that your NetFlow sender/exporter can only have one exporting process. While this is not a problem with Juniper, Cisco or Routers in general, **this is important** if you run a NetFlow Aggregator/Collector-Redistributor.
 
 #### Q2: Why did you choose a slash(/)-notation to separate IPs from Ports inside the Key-Value-Store?
 
@@ -213,7 +213,7 @@ By the way, tcpdump has an awesome [manual](http://www.tcpdump.org/tcpdump_man.h
 
 
 ```
-  Copyright 2012, 2013 wasted.io Ltd <really@wasted.io>
+  Copyright 2012, 2013, 2014 wasted.io Ltd <really@wasted.io>
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
