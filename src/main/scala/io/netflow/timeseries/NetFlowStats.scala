@@ -15,7 +15,7 @@ case class NetFlowStatsRecord(id: UUID, date: DateTime, sender: InetAddress, por
 sealed class NetFlowStats extends CassandraTable[NetFlowStats, NetFlowStatsRecord] {
 
   object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
-  object id extends TimeUUIDColumn(this) with Index[UUID]
+  object id extends TimeUUIDColumn(this) with PrimaryKey[UUID]
   object port extends IntColumn(this) with Index[Int]
   object version extends StringColumn(this) with Index[String]
   object date extends DateTimeColumn(this) with Index[DateTime]
