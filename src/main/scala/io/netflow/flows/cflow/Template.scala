@@ -1,6 +1,6 @@
 package io.netflow.flows.cflow
 
-import java.net.{ InetSocketAddress, InetAddress }
+import java.net.{ InetAddress, InetSocketAddress }
 
 import com.datastax.driver.core.Row
 import com.websudos.phantom.Implicits._

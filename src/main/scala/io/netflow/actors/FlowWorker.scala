@@ -1,8 +1,7 @@
 package io.netflow.actors
 
-import java.net.{ InetSocketAddress, InetAddress }
+import java.net.{ InetAddress, InetSocketAddress }
 
-import com.datastax.driver.core.utils.UUIDs
 import com.websudos.phantom.Implicits._
 import io.netflow.flows._
 import io.netflow.lib._

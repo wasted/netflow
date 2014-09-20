@@ -21,6 +21,7 @@ libraryDependencies ++= {
   val wastedVersion = "0.9.1"
   val liftVersion = "2.5.1"
   val phantomVersion = "1.2.2"
+  val finagleVersion = "6.20.0"
   Seq(
     "io.wasted" %% "wasted-util" % wastedVersion,
     "com.websudos"  %% "phantom-dsl" % phantomVersion,

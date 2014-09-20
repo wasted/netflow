@@ -1,7 +1,9 @@
 package io.netflow.lib
 
+import java.io.File
 import java.net.InetSocketAddress
 
+import io.wasted.util.ssl.{ KeyStoreType, Ssl }
 import io.wasted.util.{ Config, Logger }
 
 import scala.concurrent.duration._
@@ -14,7 +16,21 @@ private[netflow] object NodeConfig extends Logger {
     debugStackTraces: Boolean,
     netflow: NetFlowConfig,
     sflow: SFlowConfig,
-    cassandra: CassandraConfig)
+    cassandra: CassandraConfig,
+    ssl: SslConfig) {
+    def sslEngine = for {
+      certPath <- ssl.certPath
+      if new File(certPath).exists
+      certPass <- ssl.certPass
+    } yield {
+      val sslE = Ssl.server(certPath, certPass, KeyStoreType.P12)
+      val engine = sslE.self
+      engine.setNeedClientAuth(false)
+      engine.setUseClientMode(false)
+      engine.setEnableSessionCreation(true)
+      sslE
+    }
+  }
 
   case class CassandraConfig(
     hosts: Seq[String],
@@ -27,6 +43,10 @@ private[netflow] object NodeConfig extends Logger {
     reconnectTimeout: Int,
     readTimeout: Int,
     keyspaceConfig: String)
+
+  case class SslConfig(
+    certPath: Option[String],
+    certPass: Option[String])
 
   case class SFlowConfig(
     listen: Seq[InetSocketAddress],
@@ -68,13 +88,18 @@ private[netflow] object NodeConfig extends Logger {
       listen = Config.getInetAddrList("sflow.listen", List("0.0.0.0:6343")),
       persist = Config.getBool("sflow.persist", true))
 
+    val ssl = SslConfig(
+      certPath = Config.getString("server.ssl.p12"),
+      certPass = Config.getString("server.ssl.pass"))
+
     val server = ServerConfig(
       cores = Config.getInt("server.cores").getOrElse(Runtime.getRuntime.availableProcessors()),
       statuslog = Config.getDuration("server.statuslog", 10 seconds),
       debugStackTraces = Config.getBool("server.debugStackTraces", true),
       netflow = netflow,
       sflow = sflow,
-      cassandra = cassandra)
+      cassandra = cassandra,
+      ssl = ssl)
     info("Using %s of %s available cores", server.cores, Runtime.getRuntime.availableProcessors())
     server
   }
