@@ -38,7 +38,7 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     }
     actor onFailure {
       case e: Throwable =>
-        warn("Unauthorized NetFlow received from " + sender.getAddress.getHostAddress + ":" + sender.getPort)
+        warn("Unauthorized Flow received from " + sender.getAddress.getHostAddress + ":" + sender.getPort)
         FlowManager.bad(sender)
 
     }

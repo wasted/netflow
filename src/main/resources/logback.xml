@@ -50,10 +50,7 @@
     <logger name="Inet6Prefix" level="WARN" />
     <logger name="com.datastax.driver.core.FrameCompressor" level="ERROR"/>
 
-    <logger name="172.16.1.1" level="DEBUG" />
     <logger name="NetFlowV9Packet" level="DEBUG" />
-    <logger name="NetFlowV9Data" level="DEBUG" />
-    <logger name="NetFlowV9DataRecord" level="DEBUG" />
 
     <logger name="io.netty.channel.socket.nio.NioEventLoop" level="WARN" /> <!-- hide nio selector bug messages -->
 

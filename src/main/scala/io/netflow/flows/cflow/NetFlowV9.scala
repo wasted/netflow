@@ -158,6 +158,7 @@ case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
           .value(_.packet, id)
           .value(_.sender, row.sender.getAddress)
           .value(_.timestamp, row.timestamp)
+          .value(_.template, row.template)
           .value(_.uptime, row.uptime)
           .value(_.senderPort, row.senderPort)
           .value(_.length, row.length)
@@ -182,10 +183,19 @@ case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
           .value(_.packet, id)
           .value(_.sender, row.sender.getAddress)
           .value(_.timestamp, row.timestamp)
+          .value(_.template, row.template)
           .value(_.uptime, row.uptime)
           .value(_.senderPort, row.senderPort)
           .value(_.length, row.length)
           .value(_.extra, row.extra)
+      case row: NetFlowV9TemplateRecord =>
+        NetFlowV9Template.update.where(_.sender eqs row.sender.getAddress).
+          modify(_.id setTo row.id).
+          and(_.senderPort setTo row.senderPort).
+          and(_.packet setTo row.packet).
+          and(_.last setTo DateTime.now).
+          and(_.map setTo row.map)
+      //case nf10: cflow.NetFlowV10TemplateRecord => FIXME Netflow 10
     }
     b.add(statement)
   }.future()

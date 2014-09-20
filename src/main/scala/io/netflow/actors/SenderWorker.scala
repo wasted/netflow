@@ -10,6 +10,8 @@ import io.wasted.util._
 import org.joda.time.DateTime
 
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent._
 
 private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor with Logger {
   override protected def loggerName = config.ip.getHostAddress
@@ -18,21 +20,14 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
   private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
   private[actors] val thruputPrefixes = new AtomicReference(config.thruputPrefixes)
 
-  private var templateCache = Map.empty[Int, cflow.Template]
-  def templates = templateCache
-  def setTemplate(tmpl: cflow.Template): Unit = {
-    println("got a template " + tmpl)
-    templateCache += tmpl.id -> tmpl
-    tmpl match {
-      case nf9: cflow.NetFlowV9TemplateRecord =>
-        cflow.NetFlowV9Template.update.where(_.id eqs nf9.id).and(_.sender eqs tmpl.sender.getAddress).
-          modify(_.senderPort setTo tmpl.senderPort).
-          and(_.last setTo DateTime.now).
-          and(_.map setTo tmpl.map).future()
-      //case nf10: cflow.NetFlowV10TemplateRecord => FIXME Netflow 10
-    }
+  private var templateCache: Map[Int, cflow.Template] = {
+    val v9templates = Await.result(cflow.NetFlowV9Template.select.where(_.sender eqs config.ip).fetch(), 30 seconds)
+      .map(x => x.id -> x).toMap
+    v9templates
   }
 
+  def templates = templateCache
+  def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.id -> tmpl
   private var cancellable = Shutdown.schedule()
 
   private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = handled match {
