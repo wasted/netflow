@@ -71,7 +71,7 @@ case class NetFlowV7Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
   def count = flows.length
 
   def persist = flows.foldLeft(new BatchStatement()) { (b, row) =>
-    val statement = NetFlowV5.insert
+    val statement = NetFlowV7.insert
       .value(_.id, UUIDs.timeBased())
       .value(_.packet, id)
       .value(_.sender, row.sender.getAddress)
@@ -97,8 +97,8 @@ case class NetFlowV7Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
       .value(_.snmpOutput, row.snmpOutput)
       .value(_.srcMask, row.srcMask)
       .value(_.dstMask, row.dstMask)
-    //.value(_.flags, row.flags) // FIXME scala 2.10
-    //.value(_.routerAddress, row.routerAddress) // FIXME scala 2.10
+      .value(_.flags, row.flags)
+      .value(_.routerAddress, row.routerAddress)
     b.add(statement)
   }.future()
 }
@@ -189,8 +189,8 @@ sealed class NetFlowV7 extends CassandraTable[NetFlowV7, NetFlowV7Record] {
       buf.getInteger(14, 2).toInt, // snmpOutput
       buf.getUnsignedByte(44).toInt, // srcMask
       buf.getUnsignedByte(45).toInt, // dstMask
-      buf.getInteger(46, 2).toInt, // flags // FIXME in scala 2.11
-      buf.getInetAddress(48, 4), // routerAddress // FIXME in scala 2.11
+      buf.getInteger(46, 2).toInt, // flags
+      buf.getInetAddress(48, 4), // routerAddress
       fpId)
   }.toOption
 
