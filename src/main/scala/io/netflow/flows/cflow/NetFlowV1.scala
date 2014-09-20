@@ -164,7 +164,7 @@ sealed class NetFlowV1 extends CassandraTable[NetFlowV1, NetFlowV1Record] {
 
   object id extends TimeUUIDColumn(this) with PartitionKey[UUID]
   object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
-  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime] with ClusteringOrder[DateTime] with Ascending
+  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
   object uptime extends LongColumn(this)
   object senderPort extends IntColumn(this) with Index[Int]
   object length extends IntColumn(this)

@@ -2,8 +2,9 @@ package io.netflow.lib
 
 import com.datastax.driver.core._
 import com.datastax.driver.core.policies.{ ConstantReconnectionPolicy, DefaultRetryPolicy }
-import io.netflow.flows.FlowSender
+import io.netflow.flows._
 import io.netflow.flows.cflow._
+import io.netflow.timeseries._
 import io.wasted.util.Logger
 
 import scala.collection.JavaConverters._
@@ -11,16 +12,18 @@ import scala.collection.JavaConverters._
 object CassandraConnection extends Logger {
   private val hosts = NodeConfig.values.cassandra.hosts.mkString(",")
   private val client = {
-    debug(s"Opening new connection to $hosts")
+    info(s"Opening new connection to $hosts")
 
     val poolingOpts = new PoolingOptions
-    poolingOpts.setCoreConnectionsPerHost(HostDistance.LOCAL, NodeConfig.values.cassandra.minConns)
     poolingOpts.setMaxConnectionsPerHost(HostDistance.LOCAL, NodeConfig.values.cassandra.maxConns)
+    poolingOpts.setCoreConnectionsPerHost(HostDistance.LOCAL, NodeConfig.values.cassandra.minConns)
+
     poolingOpts.setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, NodeConfig.values.cassandra.minSimRequests)
     poolingOpts.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, NodeConfig.values.cassandra.maxSimRequests)
 
-    poolingOpts.setCoreConnectionsPerHost(HostDistance.REMOTE, NodeConfig.values.cassandra.minConns)
     poolingOpts.setMaxConnectionsPerHost(HostDistance.REMOTE, NodeConfig.values.cassandra.maxConns)
+    poolingOpts.setCoreConnectionsPerHost(HostDistance.REMOTE, NodeConfig.values.cassandra.minConns)
+
     poolingOpts.setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, NodeConfig.values.cassandra.minSimRequests)
     poolingOpts.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, NodeConfig.values.cassandra.maxSimRequests)
 
@@ -78,6 +81,9 @@ object CassandraConnection extends Logger {
     FlowSender.create.execute()
     FlowSender.createIndexes()
 
+    FlowSenderCount.create.execute()
+    FlowSenderCount.createIndexes()
+
     NetFlowV1.create.execute()
     NetFlowV1.createIndexes()
 
@@ -96,6 +102,12 @@ object CassandraConnection extends Logger {
     NetFlowV9Data.createIndexes()
     NetFlowV9Option.create.execute()
     NetFlowV9Option.createIndexes()
+
+    NetFlowSeries.create.execute()
+    NetFlowSeries.createIndexes()
+
+    NetFlowStats.create.execute()
+    NetFlowStats.createIndexes()
 
     /* FIXME netflow 10
     NetFlowV10.create.execute()

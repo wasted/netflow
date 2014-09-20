@@ -49,6 +49,6 @@ java -ea -server $SBT_OPTS $JAVA_OPTS			\
 	-XX:+CMSIncrementalMode         		\
 	-Dio.netty.epollBugWorkaround=true		\
 	-Xms128M					\
-	-Xmx512M					\
+	-Xmx2G						\
 	-jar $sbtjar "$@"
 

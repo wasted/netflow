@@ -230,7 +230,7 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
 
   object id extends UUIDColumn(this) with PartitionKey[UUID]
   object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
-  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime] with ClusteringOrder[DateTime] with Ascending
+  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
   object uptime extends LongColumn(this)
   object template extends IntColumn(this) with PrimaryKey[Int]
   object senderPort extends IntColumn(this) with Index[Int]
@@ -286,7 +286,7 @@ sealed class NetFlowV9Option extends CassandraTable[NetFlowV9Option, NetFlowV9Op
 
   object id extends UUIDColumn(this) with PartitionKey[UUID]
   object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
-  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime] with ClusteringOrder[DateTime] with Ascending
+  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
   object uptime extends LongColumn(this)
   object template extends IntColumn(this) with PrimaryKey[Int]
   object senderPort extends IntColumn(this)

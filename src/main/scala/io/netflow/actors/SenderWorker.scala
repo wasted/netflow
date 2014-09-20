@@ -38,8 +38,9 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
     case Some(fp) =>
       fp.persist
       FlowSender.update.where(_.ip eqsToken config.ip).
-        modify(_.last setTo Some(DateTime.now)).
-        and(_.dgrams increment 1).
+        modify(_.last setTo Some(DateTime.now)).future()
+      FlowSenderCount.update.where(_.ip eqsToken config.ip).
+        modify(_.dgrams increment 1).
         and(_.flows increment fp.count).future()
       FlowManager.save(osender, fp, senderPrefixes.get.toList, thruputPrefixes.get.toList)
     case _ =>

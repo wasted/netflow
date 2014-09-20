@@ -7,7 +7,7 @@ import com.websudos.phantom.Implicits._
 import io.wasted.util.{ InetPrefix, Tryo }
 import org.joda.time.DateTime
 
-case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime], flows: Long, dgrams: Long,
+case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime],
                             prefixes: Set[InetPrefix], thruputPrefixes: Set[InetPrefix]) {
 }
 
@@ -15,8 +15,6 @@ sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
 
   object ip extends InetAddressColumn(this) with PartitionKey[InetAddress]
   object last extends OptionalDateTimeColumn(this)
-  object dgrams extends CounterColumn(this)
-  object flows extends CounterColumn(this)
   object prefixes extends SetColumn[FlowSender, FlowSenderRecord, String](this)
   object thruputPrefixes extends SetColumn[FlowSender, FlowSenderRecord, String](this)
 
@@ -31,8 +29,23 @@ sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
   private implicit val strings2prefixes = (x: Set[String]) => x.flatMap(string2prefix)
 
   override def fromRow(row: Row): FlowSenderRecord = {
-    FlowSenderRecord(ip(row), last(row), flows(row), dgrams(row), prefixes(row), thruputPrefixes(row))
+    FlowSenderRecord(ip(row), last(row), prefixes(row), thruputPrefixes(row))
   }
 }
 
 object FlowSender extends FlowSender
+
+case class FlowSenderCountRecord(ip: InetAddress, flows: Long, dgrams: Long)
+
+sealed class FlowSenderCount extends CassandraTable[FlowSenderCount, FlowSenderCountRecord] {
+
+  object ip extends InetAddressColumn(this) with PartitionKey[InetAddress]
+  object dgrams extends CounterColumn(this)
+  object flows extends CounterColumn(this)
+
+  override def fromRow(row: Row): FlowSenderCountRecord = {
+    FlowSenderCountRecord(ip(row), flows(row), dgrams(row))
+  }
+}
+
+object FlowSenderCount extends FlowSenderCount

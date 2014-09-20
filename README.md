@@ -79,6 +79,8 @@ sadd sender:10.0.0.2/0 192.168.0.0/24
 sadd sender:10.0.0.2/0 2001:db8::/32
 ```
 
+**Please make sure to always use the first Address of the prefix (being 0 or whatever matches your lowest bit).**
+
 If you are interested in CQL3, check out [the documentation](http://www.datastax.com/documentation/cql/3.1/cql/cql_intro_c.html).
 
 

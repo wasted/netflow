@@ -146,8 +146,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.proto eqs flow.proto)
         .and(_.srcPort eqs flow.srcPort)
         .and(_.dstPort eqs flow.dstPort)
-        .and(_.srcIP eqs flow.srcAddress)
-        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.src eqs flow.srcAddress.getHostAddress)
+        .and(_.dst eqs flow.dstAddress.getHostAddress)
         .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
         .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
         .modify(_.bytes increment flow.bytes)
@@ -160,8 +160,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.proto eqs -1)
         .and(_.srcPort eqs flow.srcPort)
         .and(_.dstPort eqs flow.dstPort)
-        .and(_.srcIP eqs flow.srcAddress)
-        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.src eqs flow.srcAddress.getHostAddress)
+        .and(_.dst eqs flow.dstAddress.getHostAddress)
         .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
         .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
         .modify(_.bytes increment flow.bytes)
@@ -174,8 +174,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.proto eqs -1)
         .and(_.srcPort eqs -1)
         .and(_.dstPort eqs -1)
-        .and(_.srcIP eqs flow.srcAddress)
-        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.src eqs flow.srcAddress.getHostAddress)
+        .and(_.dst eqs flow.dstAddress.getHostAddress)
         .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
         .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
         .modify(_.bytes increment flow.bytes)
@@ -188,8 +188,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.proto eqs -1)
         .and(_.srcPort eqs -1)
         .and(_.dstPort eqs -1)
-        .and(_.srcIP eqs flow.srcAddress)
-        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.src eqs flow.srcAddress.getHostAddress)
+        .and(_.dst eqs flow.dstAddress.getHostAddress)
         .and(_.srcAS eqs -1)
         .and(_.dstAS eqs -1)
         .modify(_.bytes increment flow.bytes)
@@ -202,8 +202,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.proto eqs -1)
         .and(_.srcPort eqs -1)
         .and(_.dstPort eqs -1)
-        .and(_.srcIP eqs null)
-        .and(_.dstIP eqs null)
+        .and(_.src eqs pfx)
+        .and(_.dst eqs pfx)
         .and(_.srcAS eqs -1)
         .and(_.dstAS eqs -1)
         .modify(_.bytes increment flow.bytes)

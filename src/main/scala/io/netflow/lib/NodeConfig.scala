@@ -42,11 +42,11 @@ private[netflow] object NodeConfig extends Logger {
   private def load(): ServerConfig = {
     val cassandra = CassandraConfig(
       keyspace = Config.getString("server.cassandra.keyspace", "netflow"),
-      hosts = Config.getStringList("server.cassandra.hosts", List("localhost:9160")),
+      hosts = Config.getStringList("server.cassandra.hosts", List("localhost")),
       minConns = Config.getInt("server.cassandra.minConns", 5),
       maxConns = Config.getInt("server.cassandra.maxConns", 40),
       minSimRequests = Config.getInt("server.cassandra.minSimRequests", 5),
-      maxSimRequests = Config.getInt("server.cassandra.maxSimRequests", 5000),
+      maxSimRequests = Config.getInt("server.cassandra.maxSimRequests", 128),
       connectTimeout = Config.getInt("server.cassandra.connectTimeout", 5000),
       reconnectTimeout = Config.getInt("server.cassandra.reconnectTimeout", 5000),
       readTimeout = Config.getInt("server.cassandra.readTimeout", 60000),
