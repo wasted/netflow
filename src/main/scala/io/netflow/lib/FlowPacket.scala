@@ -82,9 +82,10 @@ trait NetFlowData[T] extends Flow[T] {
   }
 
   protected def stringExtra = ""
-  override def toString = "%s from %s:%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(
-    version, senderIP, senderPort, srcAddress.getHostAddress, srcPort, srcAS,
-    nextHopIP.getOrElse("direct"), dstAddress.getHostAddress, dstPort, dstAS, proto, tos, pkts, bytes, stringExtra)
+  override def toString = "%s reported by %s:%s containing %s:%s%s -> %s -> %s:%s%s Proto %s - ToS %s - %s pkts - %s bytes %s".format(
+    version, senderIP, senderPort, srcAddress.getHostAddress, srcPort, srcAS.filter(_ == 0).map(" (" + _ + ")").getOrElse(""),
+    nextHopIP.getOrElse("direct"), dstAddress.getHostAddress, dstPort, dstAS.filter(_ == 0).map(" (" + _ + ")").getOrElse(""),
+    proto, tos, pkts, bytes, stringExtra)
 }
 
 /**

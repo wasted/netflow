@@ -108,14 +108,15 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
       if (flowPacket.count != flowPacket.flows.length) error(debugStr)
       else if (debugStr.contains("Template")) info(debugStr) else debug(debugStr)
 
-      // first with all fields
-      batch.add(NetFlowStats.insert
+      // save this record
+      NetFlowStats.insert
+        .value(_.id, flowPacket.id)
         .value(_.date, DateTime.now)
         .value(_.sender, sender.getAddress)
         .value(_.port, sender.getPort)
         .value(_.version, flowPacket.version)
         .value(_.flows, flowPacket.flows.length)
-        .value(_.bytes, flowPacket.length))
+        .value(_.bytes, flowPacket.length)
 
       // execute the batch
       batch.future()
@@ -129,7 +130,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     val day = "%02d".format(date.getDayOfMonth)
     val hour = "%02d".format(date.getHourOfDay)
     val minute = "%02d".format(date.getMinuteOfHour)
-    val pfx = prefix.prefix.toString
+    val pfx = prefix.prefix.getHostAddress
     val keys = List[String](
       pfx + ":" + year,
       pfx + ":" + year + "/" + month,

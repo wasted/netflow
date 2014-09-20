@@ -22,9 +22,12 @@ libraryDependencies ++= {
   val liftVersion = "2.6-M4"
   val phantomVersion = "1.2.7"
   Seq(
-    "org.scala-lang" % "scala-reflect" % "2.11.2",
+    "org.scala-lang" % "scala-reflect" % scalaVersion.value,
     "io.wasted" %% "wasted-util" % wastedVersion,
     "com.websudos"  %% "phantom-dsl" % phantomVersion,
+    "org.codehaus.janino" % "janino" % "2.6.1",
+    "org.xerial.snappy" % "snappy-java" % "1.1.1.3",
+    //"net.jpountz.lz4" % "lz4" % "1.2.0",
     "net.liftweb" %% "lift-json" % liftVersion,
     "joda-time" % "joda-time" % "2.3",
     "org.joda" % "joda-convert" % "1.4"

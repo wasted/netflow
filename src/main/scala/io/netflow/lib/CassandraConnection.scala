@@ -40,6 +40,7 @@ object CassandraConnection extends Logger {
 
     Cluster.builder().
       addContactPoint(hosts).
+      withCompression(ProtocolOptions.Compression.SNAPPY).
       withPoolingOptions(poolingOpts).
       withSocketOptions(socketOpts).
       withRetryPolicy(DefaultRetryPolicy.INSTANCE).

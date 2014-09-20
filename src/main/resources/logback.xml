@@ -4,6 +4,42 @@
             <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
             <!-- pattern>%d{HH:mm:ss.SSS} %-5level %black(%-36logger{36}) - %boldWhite(%msg) %boldWhite(%n)</pattern -->
         </encoder>
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator>
+                <matcher>
+                    <Name>duplicateIndex</Name>
+                    <regex>Duplicate index name</regex>
+                </matcher>
+
+                <expression>duplicateIndex.matches(formattedMessage)</expression>
+            </evaluator>
+            <OnMismatch>NEUTRAL</OnMismatch>
+            <OnMatch>DENY</OnMatch>
+        </filter>
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator>
+                <matcher>
+                    <Name>createIndex</Name>
+                    <regex>CREATE INDEX IF NOT EXISTS</regex>
+                </matcher>
+
+                <expression>createIndex.matches(formattedMessage)</expression>
+            </evaluator>
+            <OnMismatch>NEUTRAL</OnMismatch>
+            <OnMatch>DENY</OnMatch>
+        </filter>
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator>
+                <matcher>
+                    <Name>addPrimaryKeys</Name>
+                    <regex>Adding Primary keys indexes </regex>
+                </matcher>
+
+                <expression>addPrimaryKeys.matches(formattedMessage)</expression>
+            </evaluator>
+            <OnMismatch>NEUTRAL</OnMismatch>
+            <OnMatch>DENY</OnMatch>
+        </filter>
     </appender>
 
     <root level="INFO">
@@ -12,6 +48,8 @@
 
     <logger name="Inet4Prefix" level="WARN" />
     <logger name="Inet6Prefix" level="WARN" />
+    <logger name="com.datastax.driver.core.FrameCompressor" level="ERROR"/>
+
     <logger name="172.16.1.1" level="DEBUG" />
     <logger name="NetFlowV9Packet" level="DEBUG" />
     <logger name="NetFlowV9Data" level="DEBUG" />

@@ -17,7 +17,7 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     e.printStackTrace()
   }
 
-  def wrap(sender: InetSocketAddress, buf: ByteBuf)
+  protected def handOff(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
     val sender = msg.sender
@@ -34,7 +34,7 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     // Try to get an actor
     val actor = SenderManager.findActorFor(sender.getAddress)
     actor onSuccess {
-      case actor: Wactor.Address => actor ! wrap(sender, msg.content())
+      case actor: Wactor.Address => handOff(actor, sender, msg.content())
     }
     actor onFailure {
       case e: Throwable =>
@@ -47,10 +47,14 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
 
 @ChannelHandler.Sharable
 object NetFlowHandler extends TrafficHandler {
-  def wrap(sender: InetSocketAddress, buf: ByteBuf) = NetFlow(sender, buf)
+  def handOff(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit = {
+    actor ! NetFlow(sender, buf)
+  }
 }
 
 @ChannelHandler.Sharable
 object SFlowHandler extends TrafficHandler {
-  def wrap(sender: InetSocketAddress, buf: ByteBuf) = SFlow(sender, buf)
+  def handOff(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit = {
+    actor ! SFlow(sender, buf)
+  }
 }
