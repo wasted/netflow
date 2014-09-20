@@ -1,7 +1,7 @@
 package io.netflow
 
-import io.wasted.util._
 import io.netty.handler.logging.LoggingHandler
+import io.wasted.util._
 
 object Node extends App with Logger {
   override def main(args: Array[String]): Unit = start()

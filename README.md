@@ -14,13 +14,15 @@ This project aims to provide an extensible flow collector written in [Scala](htt
 - NetFlow v6
 - NetFlow v7
 - NetFlow v9 ([RFC3954](http://tools.ietf.org/html/rfc3954)) - works
-- NetFlow IPFIX/v10 ([RFC3917](http://tools.ietf.org/html/rfc3917), [RFC3955](http://tools.ietf.org/html/rfc3955)) - not working
+
+## To be done
+
+- NetFlow IPFIX/v10 ([RFC3917](http://tools.ietf.org/html/rfc3917), [RFC3955](http://tools.ietf.org/html/rfc3955))
 
 
 ## Supported storage backends
 
-Currently only the [Redis](http://redis.io) Key-Value-Store is supported, but since our [backends/Redis.scala](https://github.com/wasted/netflow/blob/master/src/main/scala/io/netflow/backends/Redis.scala) only has ~100 lines, it should not be a problem to dock onto other databases.
-
+Previously versions supported [Redis](http://redis.io) as database, but has been deprecated in favor of [Apache Cassandra](https://cassandra.apache.org).
 
 ## What we won't implement
 
@@ -49,38 +51,22 @@ Can both be found in the Issues section up top.
 
 ## Configuration
 
-Since we are using a Key-Value backed architecture, we are unable to "search" for things. We are only able to look them up. So we start with a set of allowed sender IP/Port combinations of your NetFlow exporter.
-
-#### Finding the IP and Port
-
-If you do not know which IP your router uses to export NetFlows, just launch [netflow.io](http://netflow.io) in Loglevel Debug (default) and it will print "ignoring flow"-lines which will tell you about the IP/Port combination.
-
-If that does not work, use [tcpdump](http://www.tcpdump.org/tcpdump_man.html) to find out the IP and Port. If you are not familiar with tcpdump yet (you really should be!), check out our Troubleshooting Section below.
-
-As a last resort, we implemented the possibility to use **Port 0** in the Database as a **wildcard** which will match any Port.
-
-#### Our suggestion
-
-If your router supports it, set the exporter's source IP and Port to something static.
-
-Most flow-collectors will use a new port when the daemon restarts or the system reboot. Keep that in mind!
-
 #### Setting up the Database
 
-Launch the redis-cli on your shell:
+First, setup cassandra in the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf). After, start netflow to create the keyspace and required tables. Once it has successfully started, launch the cqlsh:
 
 ```
-$ redis-cli
-redis 127.0.0.1:6379> 
+$ cqlsh
+Connected to netflow at 127.0.0.1:9160.
+[cqlsh 4.1.1 | Cassandra 2.0.7.31 | CQL spec 3.1.1 | Thrift protocol 19.39.0]
+Use HELP for help.
+cqlsh> 
 ```
 
-Now create a Redis Set **senders** and populate it with **10.0.0.1/1337** or whatever your sender might be. Feel free to add multiple!
-
-Remember that **Port 0** will disable Port-checking for that particular host!
+Now add your NetFlow exporter:
 
 ```
-sadd senders 10.0.0.1/1337
-sadd senders 10.0.0.2/0
+INSERT INTO flow_senders VALUES ();
 ```
 
 Now add the networks you would like to monitor from that sender. **Of course we also support IPv6!**
@@ -93,7 +79,7 @@ sadd sender:10.0.0.2/0 192.168.0.0/24
 sadd sender:10.0.0.2/0 2001:db8::/32
 ```
 
-If you are interested in Redis, check out the [commands](http://redis.io/commands) and [data types](http://redis.io/topics/data-types).
+If you are interested in CQL3, check out [the documentation](http://www.datastax.com/documentation/cql/3.1/cql/cql_intro_c.html).
 
 
 ## Running

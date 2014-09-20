@@ -21,3 +21,7 @@ class IllegalFlowSetLengthException extends FlowException("FlowSetLength (0)")
 
 class ShortFlowPacketException extends FlowException("")
 
+class UnableToGetActorException(x: String) extends FlowException("Unable to get Actor for " + x)
+
+class UnableToGetStorageException extends FlowException("")
+

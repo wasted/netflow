@@ -1,12 +1,18 @@
 package io.netflow
 
-import io.netty.buffer._
-
-import scala.util.{ Try, Success, Failure }
 import java.net.InetAddress
 
+import io.netty.buffer._
+import io.wasted.util.WheelTimer
+
+import scala.util.{ Failure, Success, Try }
+
 package object lib {
-  import flows.cflow.TemplateFields
+
+  import io.netflow.flows.cflow.TemplateFields
+  implicit val wheelTimer = WheelTimer()
+  implicit val formats = net.liftweb.json.DefaultFormats
+  implicit val session = CassandraConnection.session
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")
 

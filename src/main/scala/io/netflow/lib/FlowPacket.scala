@@ -2,6 +2,10 @@ package io.netflow.lib
 
 import java.net.{ InetAddress, InetSocketAddress }
 
+import io.netty.buffer.ByteBuf
+import net.liftweb.json.JsonDSL._
+import net.liftweb.json._
+
 trait Flow[T] {
   def version: String
   def length: Int
@@ -9,6 +13,7 @@ trait Flow[T] {
   def senderIP = sender.getAddress.getHostAddress
   def senderPort = sender.getPort
   def json: String
+  def jsonExtra: JObject = JObject(Nil)
 }
 
 /**
@@ -21,9 +26,9 @@ trait FlowPacket {
   def senderIP = sender.getAddress.getHostAddress
   def senderPort = sender.getPort
   var date = new org.joda.time.DateTime
-  var count: Int = -1
-  var uptime: Long = -1L
-  var flows = Vector[Flow[_]]()
+  def count: Int
+  def flows: List[Flow[_]]
+  def persist: Unit
 }
 
 /**
@@ -32,48 +37,61 @@ trait FlowPacket {
 trait NetFlowData[T] extends Flow[T] {
   this: T with Flow[T] =>
 
-  var srcPort: Int = -1
-  var dstPort: Int = -1
-  var srcAS: Int = -1
-  var dstAS: Int = -1
-  var srcAddress: InetAddress = defaultAddr
-  var dstAddress: InetAddress = defaultAddr
-  var nextHop: InetAddress = defaultAddr
-  var pkts: Long = -1L
-  var bytes: Long = -1L
-  var proto: Int = -1
-  var tos: Int = -1
-  var tcpflags: Int = -1
-  var start: Long = -1L
-  var stop: Long = -1L
+  def srcPort: Int
+  def dstPort: Int
+  def srcAS: Option[Int]
+  def dstAS: Option[Int]
+  def srcAddress: InetAddress
+  def dstAddress: InetAddress
+  def nextHop: Option[InetAddress]
+  def pkts: Long
+  def bytes: Long
+  def proto: Int
+  def tos: Int
+  def tcpflags: Int
+  def start: Long
+  def stop: Long
   def duration = (stop - start).toInt
 
-  private def srcAddressIP() = srcAddress.getHostAddress
-  private def dstAddressIP() = dstAddress.getHostAddress
-  private def nextHopIP() = nextHop.getHostAddress
+  private def srcAddressIP = srcAddress.getHostAddress
+  private def dstAddressIP = dstAddress.getHostAddress
+  private def nextHopIP = nextHop.map(_.getHostAddress)
 
-  protected def jsonExtra = "{}"
-  lazy val json = "{" +
-    "\"flowVersion\": \"" + version + "\", " +
-    "\"flowSender\": \"" + senderIP + "/" + senderPort + "\", " +
-    "\"srcPort\": " + srcPort + ", " +
-    "\"dstPort\": " + dstPort + ", " +
-    "\"srcAddress\": \"" + srcAddressIP + "\", " +
-    "\"dstAddress\": \"" + dstAddressIP + "\", " +
-    "\"srcAS\": " + srcAS + ", " +
-    "\"dstAS\": " + dstAS + ", " +
-    "\"nextHop\": \"" + nextHopIP + "\", " +
-    "\"proto\": " + proto + ", " +
-    "\"tos\": " + tos + ", " +
-    "\"pkts\": " + pkts + ", " +
-    "\"bytes\": " + bytes + ", " +
-    "\"start\": " + start + ", " +
-    "\"stop\": " + stop + ", " +
-    "\"tcpFlags\": " + tcpflags + jsonExtra + "}"
+  lazy val json = {
+    ("flowVersion" -> version) ~
+      ("flowSender" -> (senderIP + ":" + senderPort)) ~
+      ("srcPort" -> srcPort) ~
+      ("dstPort" -> dstPort) ~
+      ("srcAddress" -> srcAddressIP) ~
+      ("dstAddress" -> dstAddressIP) ~
+      ("srcAS" -> srcAS) ~
+      ("dstAS" -> dstAS) ~
+      ("nextHop" -> nextHopIP) ~
+      ("proto" -> proto) ~
+      ("tos" -> tos) ~
+      ("pkts" -> pkts) ~
+      ("bytes" -> bytes) ~
+      ("start" -> start) ~
+      ("stop" -> stop) ~
+      ("tcpFlags" -> tcpflags) ~ jsonExtra
+  }.toString
 
   protected def stringExtra = ""
-  override def toString() = "%s from %s/%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(
+  override def toString = "%s from %s:%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(
     version, senderIP, senderPort, srcAddress.getHostAddress, srcPort, srcAS,
-    nextHop.getHostAddress, dstAddress.getHostAddress, dstPort, dstAS, proto, tos, pkts, bytes, stringExtra)
+    nextHopIP.getOrElse("direct"), dstAddress.getHostAddress, dstPort, dstAS, proto, tos, pkts, bytes, stringExtra)
 }
 
+/**
+ * Wrapper class for NetFlow Bytes
+ * @param sender Sender Socket Address
+ * @param msg Netty ByteBuf
+ */
+case class NetFlow(sender: InetSocketAddress, msg: ByteBuf)
+
+/**
+ * Wrapper class for SFlow Bytes
+ * @param sender Sender Socket Address
+ * @param msg Netty ByteBuf
+ */
+case class SFlow(sender: InetSocketAddress, msg: ByteBuf)

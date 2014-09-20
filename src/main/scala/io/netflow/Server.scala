@@ -1,34 +1,36 @@
 package io.netflow
 
-import io.netflow.netty._
-import io.wasted.util._
+import java.net.InetSocketAddress
+import java.util.concurrent.atomic.AtomicReference
 
+import io.netflow.actors.{ FlowManager, SenderManager }
+import io.netflow.lib._
+import io.netflow.netty._
 import io.netty.bootstrap._
 import io.netty.channel._
 import io.netty.channel.nio._
 import io.netty.channel.socket.nio._
+import io.wasted.util._
 
-import java.net.InetSocketAddress
-import scala.util.{ Try, Success, Failure }
-import io.netflow.lib.{ NodeConfig, Service }
+import scala.util.{ Failure, Success, Try }
 
 private[netflow] object Server extends Logger { PS =>
-  private var eventLoop: Option[NioEventLoopGroup] = None
+  private val _eventLoop = new AtomicReference[NioEventLoopGroup](null)
+  private def eventLoop = _eventLoop.get()
 
-  def start() {
-    if (eventLoop.isDefined) return
+  def start(): Unit = synchronized {
+    if (eventLoop != null) return
     info("Starting up netflow.io version %s", io.netflow.lib.BuildInfo.version)
-    Service.start()
+    _eventLoop.set(new NioEventLoopGroup)
+    CassandraConnection.start()
+    SenderManager
+    FlowManager
 
-    val el = new NioEventLoopGroup
-    eventLoop = Some(el)
     def startListeningFor(what: String, listeners: Seq[InetSocketAddress], handler: ChannelHandler): Boolean = {
-
-      // Refresh filters from Backend
       Try {
         listeners.foreach { addr =>
           val srv = new Bootstrap
-          srv.group(el)
+          srv.group(eventLoop)
             .localAddress(addr)
             .channel(classOf[NioDatagramChannel])
             .handler(handler)
@@ -45,8 +47,8 @@ private[netflow] object Server extends Logger { PS =>
       }
     }
 
-    if (!startListeningFor("NetFlow", NodeConfig.values.netflows, NetFlowHandler)) return stop()
-    if (!startListeningFor("sFlow", NodeConfig.values.sflows, SFlowHandler)) return stop()
+    if (!startListeningFor("NetFlow", NodeConfig.values.netflow.listen, NetFlowHandler)) return Runtime.getRuntime.halt(0)
+    if (!startListeningFor("sFlow", NodeConfig.values.sflow.listen, SFlowHandler)) return Runtime.getRuntime.halt(0)
 
     info("Ready")
 
@@ -56,13 +58,18 @@ private[netflow] object Server extends Logger { PS =>
     })
   }
 
-  def stop() {
+  def stop(): Unit = synchronized {
+    if (eventLoop == null) return
     info("Shutting down")
 
     // Shut down all event loops to terminate all threads.
-    eventLoop.map(_.shutdownGracefully())
-    eventLoop = None
-    Service.stop()
+    eventLoop.shutdownGracefully()
+    _eventLoop.set(null)
+
+    SenderManager.stop()
+    FlowManager.stop()
+    CassandraConnection.shutdown()
+
     info("Shutdown complete")
   }
 }

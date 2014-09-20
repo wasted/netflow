@@ -1,10 +1,13 @@
 package io.netflow.flows.sflow
 
-import io.wasted.util.Logger
+import java.net.{ InetAddress, InetSocketAddress }
+
 import io.netflow.lib._
 import io.netty.buffer._
-import java.net.InetSocketAddress
-import scala.util.{ Try, Failure }
+import io.wasted.util.Logger
+import net.liftweb.json.JsonDSL._
+
+import scala.util.{ Failure, Try }
 
 /**
  * sFlow Version 5 Packet
@@ -65,9 +68,8 @@ object SFlowV5Packet extends Logger {
     if (version != 5) return Failure(new InvalidFlowVersionException(version))
 
     buf.readerIndex(0)
-    val packet = SFlowV5Packet(sender, buf.readableBytes)
 
-    if (packet.length < 28)
+    if (buf.readableBytes < 28)
       return Failure(new IncompleteFlowPacketHeaderException)
 
     val agentIPversion = if (buf.getInteger(4, 4) == 1L) 4 else 6
@@ -77,8 +79,8 @@ object SFlowV5Packet extends Logger {
     var offset = 8 + agentLength
     val agentSubId = buf.getInteger(offset, 4)
     val sequenceId = buf.getInteger(offset + 4, 4)
-    packet.uptime = buf.getInteger(offset + 8, 4)
-    packet.count = buf.getInteger(offset + 12, 4).toInt
+    val uptime = buf.getInteger(offset + 8, 4)
+    val count = buf.getInteger(offset + 12, 4).toInt
     offset = offset + 16
 
     //packet.flows = Vector.range(0, count) map { i =>
@@ -86,12 +88,18 @@ object SFlowV5Packet extends Logger {
     //  offset += flow.length + 8
     //  flow
     //}
-    packet
+    val flows: List[SFlowV5] = List()
+    SFlowV5Packet(sender, buf.readableBytes, agent, agentSubId, sequenceId, uptime, flows)
   }
 }
 
-case class SFlowV5Packet(sender: InetSocketAddress, length: Int) extends FlowPacket {
+case class SFlowV5Packet(sender: InetSocketAddress, length: Int, agent: InetAddress,
+                         agentSubId: Long, sequenceId: Long, uptime: Long, flows: List[SFlowV5]) extends FlowPacket {
   def version = "sFlowV5 Packet"
+  def count = flows.length
+  def persist: Unit = {
+    // FIXME persist
+  }
 }
 
 /**
@@ -111,19 +119,16 @@ object SFlowV5 {
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  //  def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IFFlowData = {
-  //  // Since sFlows have dynamic length, we need to keep count
-  //  var recordLength = 0
+  //def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IFFlowData = {
+  // Since sFlows have dynamic length, we need to keep count
+  //var recordLength = 0
   //}
 }
 
 case class SFlowV5(sender: InetSocketAddress, length: Int) extends Flow[SFlowV5] {
   def version = "sFlowV5 Flow"
 
-  // TODO implement JSON serialization
-  lazy val json = """
-  {
-    "flowVersion": "%s",
-    "flowSender": "%s/%s"
-  }""".trim().format(version, senderIP, senderPort)
+  lazy val json = {
+    ("flowVersion" -> version) ~ ("flowSender" -> "%s:%s".format(senderIP, senderPort))
+  }.toString
 }
