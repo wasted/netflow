@@ -85,6 +85,9 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         case _ =>
       }
 
+      // execute the batch
+      batch.future()
+
       val flowSeq = flowPacket match {
         case a: cflow.NetFlowV5Packet => ", flowSeq: " + a.flowSequence
         case a: cflow.NetFlowV6Packet => ", flowSeq: " + a.flowSequence
@@ -116,10 +119,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .value(_.port, sender.getPort)
         .value(_.version, flowPacket.version)
         .value(_.flows, flowPacket.flows.length)
-        .value(_.bytes, flowPacket.length)
-
-      // execute the batch
-      batch.future()
+        .value(_.bytes, flowPacket.length).future()
   }
 
   // Handle NetFlowData
