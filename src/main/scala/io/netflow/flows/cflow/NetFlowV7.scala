@@ -55,17 +55,18 @@ object NetFlowV7Packet {
 
     val uptime = buf.getInteger(4, 4) / 1000
     val timestamp = new DateTime(buf.getInteger(8, 4) * 1000)
+    val id = UUIDs.startOf(timestamp.getMillis)
     val flowSequence = buf.getInteger(16, 4)
 
     val flows: List[NetFlowV7Record] = (0 to count - 1).toList.flatMap { i =>
-      NetFlowV7(sender, buf.slice(headerSize + (i * flowSize), flowSize), uptime, timestamp)
+      NetFlowV7(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp)
     }
-    NetFlowV7Packet(sender, buf.readableBytes, uptime, timestamp, flows, flowSequence)
+    NetFlowV7Packet(id, sender, buf.readableBytes, uptime, timestamp, flows, flowSequence)
   }
 }
 
-case class NetFlowV7Packet(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV7Record],
-                           flowSequence: Long) extends FlowPacket {
+case class NetFlowV7Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+                           flows: List[NetFlowV7Record], flowSequence: Long) extends FlowPacket {
   def version = "NetFlowV7 Packet"
   def count = flows.length
 

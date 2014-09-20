@@ -1,7 +1,9 @@
 package io.netflow.flows.sflow
 
 import java.net.{ InetAddress, InetSocketAddress }
+import java.util.UUID
 
+import com.datastax.driver.core.utils.UUIDs
 import io.netflow.lib._
 import io.netty.buffer._
 import io.wasted.util.Logger
@@ -82,19 +84,20 @@ object SFlowV5Packet extends Logger {
     val sequenceId = buf.getInteger(offset + 4, 4)
     val uptime = buf.getInteger(offset + 8, 4)
     val count = buf.getInteger(offset + 12, 4).toInt
+    val id = UUIDs.timeBased()
     offset = offset + 16
 
     //packet.flows = Vector.range(0, count) map { i =>
-    //  val flow = SFlowV5(5, sender, buf.slice(offset, buf.readableBytes - offset))
+    //  val flow = SFlowV5(5, sender, buf.slice(offset, buf.readableBytes - offset), id)
     //  offset += flow.length + 8
     //  flow
     //}
     val flows: List[SFlowV5] = List()
-    SFlowV5Packet(sender, buf.readableBytes, agent, agentSubId, sequenceId, uptime, flows)
+    SFlowV5Packet(id, sender, buf.readableBytes, agent, agentSubId, sequenceId, uptime, flows)
   }
 }
 
-case class SFlowV5Packet(sender: InetSocketAddress, length: Int, agent: InetAddress,
+case class SFlowV5Packet(id: UUID, sender: InetSocketAddress, length: Int, agent: InetAddress,
                          agentSubId: Long, sequenceId: Long, uptime: Long, flows: List[SFlowV5]) extends FlowPacket {
   def version = "sFlowV5 Packet"
   def count = flows.length
@@ -121,13 +124,13 @@ object SFlowV5 {
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  //def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf): IFFlowData = {
+  //def apply(version: Int, sender: InetSocketAddress, buf: ByteBuf, fpId: UUID): IFFlowData = {
   // Since sFlows have dynamic length, we need to keep count
   //var recordLength = 0
   //}
 }
 
-case class SFlowV5(sender: InetSocketAddress, length: Int) extends Flow[SFlowV5] {
+case class SFlowV5(sender: InetSocketAddress, length: Int, packet: UUID) extends Flow[SFlowV5] {
   def version = "sFlowV5 Flow"
 
   lazy val json = {

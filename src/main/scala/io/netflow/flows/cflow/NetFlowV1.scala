@@ -52,15 +52,16 @@ object NetFlowV1Packet {
 
     val uptime = buf.getInteger(4, 4) / 1000
     val timestamp = new DateTime(buf.getInteger(8, 4) * 1000)
+    val id = UUIDs.startOf(timestamp.getMillis)
 
     val flows: List[NetFlowV1Record] = (0 to count - 1).toList.flatMap { i =>
-      NetFlowV1(sender, buf.slice(headerSize + (i * flowSize), flowSize), uptime, timestamp)
+      NetFlowV1(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp)
     }
-    NetFlowV1Packet(sender, buf.readableBytes, uptime, timestamp, flows)
+    NetFlowV1Packet(id, sender, buf.readableBytes, uptime, timestamp, flows)
   }
 }
 
-case class NetFlowV1Packet(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV1Record]) extends FlowPacket {
+case class NetFlowV1Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV1Record]) extends FlowPacket {
   def version = "NetFlowV1 Packet"
   def count = flows.length
 

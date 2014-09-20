@@ -3,7 +3,8 @@ package io.netflow
 import java.net.InetAddress
 
 import io.netty.buffer._
-import io.wasted.util.WheelTimer
+import io.wasted.util.{ InetPrefix, WheelTimer }
+import net.liftweb.json._
 
 import scala.util.{ Failure, Success, Try }
 
@@ -11,7 +12,7 @@ package object lib {
 
   import io.netflow.flows.cflow.TemplateFields
   implicit val wheelTimer = WheelTimer()
-  implicit val formats = net.liftweb.json.DefaultFormats
+  implicit val formats = net.liftweb.json.DefaultFormats + new InetPrefixSerializer
   implicit val session = CassandraConnection.session
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")
@@ -54,5 +55,13 @@ package object lib {
     }
   }
 
+  class InetPrefixSerializer extends CustomSerializer[InetPrefix](format => (
+    {
+      case JObject(JField("prefix", JString(prefix)) :: JField("prefixLen", JInt(prefixLen)) :: Nil) =>
+        InetPrefix(InetAddress.getByName(prefix), prefixLen.intValue())
+    },
+    {
+      case x: InetAddress => JString(x.getHostAddress)
+    }))
 }
 

@@ -53,36 +53,8 @@ Can both be found in the Issues section up top.
 
 #### Setting up the Database
 
-First, setup cassandra in the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf). After, start netflow to create the keyspace and required tables. Once it has successfully started, launch the cqlsh:
-
-```
-$ cqlsh
-Connected to netflow at 127.0.0.1:9160.
-[cqlsh 4.1.1 | Cassandra 2.0.7.31 | CQL spec 3.1.1 | Thrift protocol 19.39.0]
-Use HELP for help.
-cqlsh> 
-```
-
-Now add your NetFlow exporter:
-
-```
-INSERT INTO flow_senders VALUES ();
-```
-
-Now add the networks you would like to monitor from that sender. **Of course we also support IPv6!**
-
-```
-sadd sender:10.0.0.1/1337 192.168.0.0/24
-sadd sender:10.0.0.1/1337 2001:db8::/32
-
-sadd sender:10.0.0.2/0 192.168.0.0/24
-sadd sender:10.0.0.2/0 2001:db8::/32
-```
-
-**Please make sure to always use the first Address of the prefix (being 0 or whatever matches your lowest bit).**
-
-If you are interested in CQL3, check out [the documentation](http://www.datastax.com/documentation/cql/3.1/cql/cql_intro_c.html).
-
+First, setup cassandra in the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf).
+After, start netflow to create the keyspace and required tables.
 
 ## Running
 
@@ -117,6 +89,41 @@ java -server      								\
 A more optimized version can be found in the [run shellscript](https://raw.github.com/wasted/netflow/master/run).
 
 We are open to suggestions for some more optimal JVM parameters. Please consider opening a pull request if you think you've got an optimization.
+
+
+## REST API
+
+Once it has successfully started, you can start adding authorized senders using the HTTP REST API:
+
+```shell
+curl -X PUT http://127.0.0.1:8080/sender/172.16.1.1/172.16.1.0/24/10.0.0.0/24
+```
+
+This will setup the NetFlow sender 172.16.1.1 which is monitoring 172.16.1.0/24 and 10.0.0.0/24. **Of course we also support IPv6!**
+
+```shell
+curl -X PUT http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
+```
+
+**Please make sure to always use the first Address of the prefix (being 0 or whatever matches your lowest bit).**
+
+To remove a subnet from the sender, just issue a DELETE instead of PUT with the subnet you want to delete from this sender. This also works with multiples, just like PUT.
+                           
+```shell
+curl -X DELETE http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
+```
+
+To remove a whole sender, just issue a DELETE without any subnet.
+                               
+```shell
+curl -X DELETE http://127.0.0.1:8080/sender/172.16.1.1
+```
+
+For a list of all configured senders
+                               
+```shell
+curl -X GET http://127.0.0.1:8080/senders
+```
 
 
 ## FAQ - Frequently Asked Questions

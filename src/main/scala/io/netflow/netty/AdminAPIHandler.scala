@@ -5,6 +5,7 @@ import java.net.{ InetAddress, InetSocketAddress }
 import com.websudos.phantom.Implicits._
 import io.netflow.flows.FlowSender
 import io.netflow.lib._
+import io.netty.buffer.{ Unpooled, PooledByteBufAllocator }
 import io.netty.channel.{ ChannelFutureListener, ChannelHandler, ChannelHandlerContext, SimpleChannelInboundHandler }
 import io.netty.handler.codec.http.HttpHeaders.Names._
 import io.netty.handler.codec.http.HttpHeaders._
@@ -12,8 +13,10 @@ import io.netty.handler.codec.http.HttpMethod._
 import io.netty.handler.codec.http.HttpVersion._
 import io.netty.handler.codec.http._
 import io.netty.handler.logging.LogLevel
+import io.netty.util.CharsetUtil
 import io.wasted.util._
 import io.wasted.util.http.ExceptionHandler
+import net.liftweb.json.Serialization
 
 @ChannelHandler.Sharable
 private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHttpRequest] with Logger {
@@ -60,6 +63,21 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
           response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
         // Close the connection as soon as the error message is sent.
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+
+      case (GET, "senders" :: Nil) =>
+        val f = FlowSender.select.fetch()
+        f.onFailure { case t => sendError(ctx, request, HttpResponseStatus.INTERNAL_SERVER_ERROR) }
+        f.onSuccess {
+          case senders =>
+            val json = Serialization.write(senders.seq).getBytes(CharsetUtil.UTF_8)
+            val response = new DefaultFullHttpResponse(HTTP_1_1, HttpResponseStatus.OK, Unpooled.wrappedBuffer(json))
+            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
+            setContentLength(response, json.length)
+            if (!isKeepAlive(request))
+              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
+            // Close the connection as soon as the error message is sent.
+            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+        }
 
       case (PUT, "sender" :: ip :: prefixes) =>
         Tryo(InetAddress.getByName(ip)) match {

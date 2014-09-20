@@ -60,19 +60,20 @@ object NetFlowV6Packet {
 
     val uptime = buf.getInteger(4, 4) / 1000
     val timestamp = new DateTime(buf.getInteger(8, 4) * 1000)
+    val id = UUIDs.startOf(timestamp.getMillis)
     val flowSequence = buf.getInteger(16, 4)
     val engineType = buf.getInteger(20, 1).toInt
     val engineId = buf.getInteger(21, 1).toInt
     val samplingInterval = buf.getInteger(22, 2).toInt
 
     val flows: List[NetFlowV6Record] = (0 to count - 1).toList.flatMap { i =>
-      NetFlowV6(sender, buf.slice(headerSize + (i * flowSize), flowSize), uptime, timestamp)
+      NetFlowV6(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp)
     }
-    NetFlowV6Packet(sender, buf.readableBytes, uptime, timestamp, flows, flowSequence, engineType, engineId, samplingInterval)
+    NetFlowV6Packet(id, sender, buf.readableBytes, uptime, timestamp, flows, flowSequence, engineType, engineId, samplingInterval)
   }
 }
 
-case class NetFlowV6Packet(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV6Record],
+case class NetFlowV6Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV6Record],
                            flowSequence: Long, engineType: Int, engineId: Int, samplingInterval: Int) extends FlowPacket {
   def version = "NetFlowV6 Packet"
   def count = flows.length

@@ -4,8 +4,6 @@ import io.netty.handler.logging.LoggingHandler
 import io.wasted.util._
 
 object Node extends App with Logger {
-  override def main(args: Array[String]): Unit = start()
-
   def start() {
     // OS Checking
     val os = System.getProperty("os.name").toLowerCase
@@ -26,5 +24,7 @@ object Node extends App with Logger {
   }
 
   def stop(): Unit = Server.stop()
+
+  start()
 }
 
