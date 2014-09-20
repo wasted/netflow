@@ -51,7 +51,7 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
 
   def channelRead0(ctx: ChannelHandlerContext, request: FullHttpRequest): Unit = {
     // If this is a GET request which results in content, we forward it
-    (request.getMethod, request.getUri.split("/").toList) match {
+    (request.getMethod, request.getUri.split("/").toList.drop(1)) match {
       case (GET, Nil) =>
         val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
         response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
@@ -64,25 +64,8 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
       case (PUT, "sender" :: ip :: prefixes) =>
         Tryo(InetAddress.getByName(ip)) match {
           case Some(ipaddr) =>
-            val tba = prefixes.grouped(2).toSet.map(_.mkString("/"))
-            FlowSender.update.where(_.ip eqsToken ipaddr).modify(_.prefixes addAll tba).future()
-            val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
-            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-            setContentLength(response, 0)
-            if (!isKeepAlive(request))
-              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-            // Close the connection as soon as the error message is sent.
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
-
-          case _ =>
-            sendError(ctx, request, HttpResponseStatus.NOT_ACCEPTABLE)
-        }
-
-      case (DELETE, "sender" :: ip :: prefixes) =>
-        Tryo(InetAddress.getByName(ip)) match {
-          case Some(ipaddr) =>
-            val tbr = prefixes.grouped(2).toSet.map(_.mkString("/"))
-            FlowSender.update.where(_.ip eqsToken ipaddr).modify(_.prefixes removeAll tbr).future()
+            val tba = prefixes.grouped(2).map(_.mkString("/")).toSet
+            FlowSender.update.where(_.ip eqs ipaddr).modify(_.prefixes addAll tba).future()
             val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
             response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
             setContentLength(response, 0)
@@ -98,7 +81,7 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
       case (DELETE, "sender" :: ip :: Nil) =>
         Tryo(InetAddress.getByName(ip)) match {
           case Some(ipaddr) =>
-            FlowSender.delete.where(_.ip eqsToken ipaddr).future()
+            FlowSender.delete.where(_.ip eqs ipaddr).future()
             val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
             response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
             setContentLength(response, 0)
@@ -110,6 +93,24 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
           case _ =>
             sendError(ctx, request, HttpResponseStatus.NOT_ACCEPTABLE)
         }
+
+      case (DELETE, "sender" :: ip :: prefixes) =>
+        Tryo(InetAddress.getByName(ip)) match {
+          case Some(ipaddr) =>
+            val tbr = prefixes.grouped(2).map(_.mkString("/")).toSet
+            FlowSender.update.where(_.ip eqs ipaddr).modify(_.prefixes removeAll tbr).future()
+            val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
+            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
+            setContentLength(response, 0)
+            if (!isKeepAlive(request))
+              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
+            // Close the connection as soon as the error message is sent.
+            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+
+          case _ =>
+            sendError(ctx, request, HttpResponseStatus.NOT_ACCEPTABLE)
+        }
+
       case _ =>
         sendError(ctx, request, HttpResponseStatus.NOT_FOUND)
     }

@@ -28,10 +28,13 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
       return
     }
 
+    // Retain the payload
+    msg.content().retain()
+
     // Try to get an actor
     val actor = SenderManager.findActorFor(sender.getAddress)
     actor onSuccess {
-      case actor: Wactor.Address => actor ! wrap(sender, msg.content().retain())
+      case actor: Wactor.Address => actor ! wrap(sender, msg.content())
     }
     actor onFailure {
       case e: Throwable =>

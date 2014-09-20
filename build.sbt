@@ -7,7 +7,7 @@ organization := "io.wasted"
 
 version := scala.io.Source.fromFile("version").mkString.trim
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.2"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-Yinline-warnings", "-Xcheckinit", "-encoding", "utf8", "-feature")
 
@@ -19,10 +19,10 @@ mainClass in assembly := Some("io.netflow.Node")
 
 libraryDependencies ++= {
   val wastedVersion = "0.9.1"
-  val liftVersion = "2.5.1"
-  val phantomVersion = "1.2.2"
-  val finagleVersion = "6.20.0"
+  val liftVersion = "2.6-M4"
+  val phantomVersion = "1.2.7"
   Seq(
+    "org.scala-lang" % "scala-reflect" % "2.11.2",
     "io.wasted" %% "wasted-util" % wastedVersion,
     "com.websudos"  %% "phantom-dsl" % phantomVersion,
     "net.liftweb" %% "lift-json" % liftVersion,

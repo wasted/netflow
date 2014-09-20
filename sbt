@@ -50,5 +50,6 @@ java -ea -server $SBT_OPTS $JAVA_OPTS			\
 	-Dio.netty.epollBugWorkaround=true		\
 	-Xms128M					\
 	-Xmx2G						\
+	-XX:MaxPermSize=512M                            \
 	-jar $sbtjar "$@"
 

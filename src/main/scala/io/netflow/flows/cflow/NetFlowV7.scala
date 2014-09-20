@@ -72,6 +72,7 @@ case class NetFlowV7Packet(sender: InetSocketAddress, length: Int, uptime: Long,
   def persist = flows.foldLeft(new BatchStatement()) { (b, row) =>
     val statement = NetFlowV5.insert
       .value(_.id, UUIDs.timeBased())
+      .value(_.packet, id)
       .value(_.sender, row.sender.getAddress)
       .value(_.timestamp, row.timestamp)
       .value(_.uptime, row.uptime)
@@ -163,10 +164,11 @@ sealed class NetFlowV7 extends CassandraTable[NetFlowV7, NetFlowV7Record] {
    *
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf Slice containing the UDP Packet
+   * @param fpId FlowPacket-UUID this Flow arrived on
    * @param uptime Seconds since UNIX Epoch when the exporting device/sender booted
    * @param timestamp DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, uptime: Long, timestamp: DateTime): Option[NetFlowV7Record] = Try[NetFlowV7Record] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime): Option[NetFlowV7Record] = Try[NetFlowV7Record] {
     NetFlowV7Record(sender, buf.readableBytes(), uptime, timestamp,
       buf.getInteger(32, 2).toInt, // srcPort
       buf.getInteger(34, 2).toInt, // dstPort
@@ -185,12 +187,14 @@ sealed class NetFlowV7 extends CassandraTable[NetFlowV7, NetFlowV7Record] {
       buf.getInteger(12, 2).toInt, // snmpInput
       buf.getInteger(14, 2).toInt, // snmpOutput
       buf.getUnsignedByte(44).toInt, // srcMask
-      buf.getUnsignedByte(45).toInt) // dstMask
-    //buf.getInteger(46, 2).toInt, // flags // FIXME in scala 2.11
-    //buf.getInetAddress(48, 4)) // routerAddress // FIXME in scala 2.11
+      buf.getUnsignedByte(45).toInt, // dstMask
+      buf.getInteger(46, 2).toInt, // flags // FIXME in scala 2.11
+      buf.getInetAddress(48, 4), // routerAddress // FIXME in scala 2.11
+      fpId)
   }.toOption
 
   object id extends UUIDColumn(this) with PartitionKey[UUID]
+  object packet extends TimeUUIDColumn(this) with Index[UUID]
   object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
   object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
   object uptime extends LongColumn(this)
@@ -220,7 +224,7 @@ sealed class NetFlowV7 extends CassandraTable[NetFlowV7, NetFlowV7Record] {
   def fromRow(row: Row): NetFlowV7Record = NetFlowV7Record(new InetSocketAddress(sender(row), senderPort(row)),
     length(row), uptime(row), timestamp(row), srcPort(row), dstPort(row), srcAS(row), dstAS(row), pkts(row), bytes(row), proto(row), tos(row),
     tcpflags(row), start(row), stop(row), srcAddress(row), dstAddress(row), nextHop(row), snmpInput(row), snmpOutput(row),
-    srcMask(row), dstMask(row)) //, flags(row), routerAddress(row))
+    srcMask(row), dstMask(row), flags(row), routerAddress(row), packet(row))
 }
 
 object NetFlowV7 extends NetFlowV7
@@ -229,10 +233,12 @@ case class NetFlowV7Record(sender: InetSocketAddress, length: Int, uptime: Long,
                            srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
                            pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int, start: DateTime, stop: DateTime,
                            srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
-                           snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int) //, flags: Int, routerAddress: InetAddress // FIXME in scala 2.11
+                           snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, flags: Int,
+                           routerAddress: InetAddress, packet: UUID)
   extends NetFlowData[NetFlowV7Record] {
   def version = "NetFlowV7"
 
   override lazy val jsonExtra = ("srcMask" -> srcMask) ~ ("dstMask" -> dstMask) ~
-    ("snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput)) //~ ("flags" -> flags) ~ ("routerAddress" -> routerAddress)
+    ("snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput)) ~ ("flags" -> flags)
+  ("routerAddress" -> routerAddress.getHostAddress) ~ ("packet" -> packet.toString)
 }

@@ -15,9 +15,9 @@ import io.wasted.util.http.ExceptionHandler
  * Manipulates the current pipeline dynamically to switch protocols or enable SSL or GZIP.
  */
 private[netty] object ProtoNegoHandler extends Logger
-private[netty] class ProtoNegoHandler(
+private[netflow] class ProtoNegoHandler(
   detectSsl: Boolean = NodeConfig.values.ssl.certPass.isDefined && NodeConfig.values.ssl.certPath.isDefined,
-  detectGzip: Boolean = true) extends ByteToMessageDecoder {
+  detectGzip: Boolean = NodeConfig.values.http.gzip) extends ByteToMessageDecoder {
 
   override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
     cause match {
@@ -36,8 +36,6 @@ private[netty] class ProtoNegoHandler(
 
     val magic1 = buffer.getUnsignedByte(buffer.readerIndex())
     val magic2 = buffer.getUnsignedByte(buffer.readerIndex() + 1)
-    val magic3 = buffer.getUnsignedByte(buffer.readerIndex() + 2)
-    val magic4 = buffer.getUnsignedByte(buffer.readerIndex() + 3)
     val p = ctx.pipeline
 
     if (detectSsl) {
@@ -57,8 +55,9 @@ private[netty] class ProtoNegoHandler(
       p.addLast("nego_http", new ProtoNegoHandler(detectSsl, false))
       p.remove(this)
     } else if (isHttp(magic1, magic2)) {
-      p.addLast("decoder", new HttpRequestDecoder(1024, 512, 8192))
-      p.addLast("aggregator", new HttpObjectAggregator(8192 * 64))
+      val httpc = NodeConfig.values.http
+      p.addLast("decoder", new HttpRequestDecoder(httpc.maxInitialLineLength.toInt, httpc.maxHeaderSize.toInt, httpc.maxChunkSize.toInt))
+      p.addLast("aggregator", new HttpObjectAggregator(httpc.maxContentLength.toInt))
       p.addLast("encoder", new HttpResponseEncoder())
       if (detectGzip) p.addLast("deflater", new HttpContentCompressor())
       p.addLast("chunkedWriter", new ChunkedWriteHandler())

@@ -12,8 +12,8 @@ import org.joda.time.DateTime
 import scala.concurrent.duration._
 
 private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor with Logger {
-  override protected def loggerName = "Sender " + config.ip
-  info("Starting for " + loggerName)
+  override protected def loggerName = config.ip.getHostAddress
+  info("Starting up")
 
   private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
   private[actors] val thruputPrefixes = new AtomicReference(config.thruputPrefixes)
@@ -21,6 +21,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
   private var templateCache = Map.empty[Int, cflow.Template]
   def templates = templateCache
   def setTemplate(tmpl: cflow.Template): Unit = {
+    println("got a template " + tmpl)
     templateCache += tmpl.id -> tmpl
     tmpl match {
       case nf9: cflow.NetFlowV9TemplateRecord =>
@@ -37,11 +38,8 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
   private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = handled match {
     case Some(fp) =>
       fp.persist
-      FlowSender.update.where(_.ip eqsToken config.ip).
+      FlowSender.update.where(_.ip eqs config.ip).
         modify(_.last setTo Some(DateTime.now)).future()
-      FlowSenderCount.update.where(_.ip eqsToken config.ip).
-        modify(_.dgrams increment 1).
-        and(_.flows increment fp.count).future()
       FlowManager.save(osender, fp, senderPrefixes.get.toList, thruputPrefixes.get.toList)
     case _ =>
       warn("Unable to parse FlowPacket")
@@ -88,6 +86,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
       buf.release()
 
     case Shutdown =>
+      info("Shutting down")
       SenderManager.removeActorFor(config.ip)
       templateCache = Map.empty
       this ! Wactor.Die

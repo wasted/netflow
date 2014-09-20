@@ -31,7 +31,7 @@ private[netflow] object SenderManager extends Wactor {
     case KillActor(addr: InetAddress) => senderActors -= addr
     case GetActor(p: Promise[Wactor.Address], sender: InetAddress) =>
       senderActors.get(sender).map(p.success) getOrElse {
-        val f = FlowSender.select.where(_.ip eqsToken sender).get()
+        val f = FlowSender.select.where(_.ip eqs sender).get()
         f.onFailure(f => p.failure(f))
 
         f.onSuccess {

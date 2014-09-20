@@ -1,0 +1,3 @@
+[submodule "external/phantom"]
+	path = external/phantom
+	url = git@github.com:fbettag/phantom.git

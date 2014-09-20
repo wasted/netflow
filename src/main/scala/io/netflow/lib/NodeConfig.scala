@@ -17,6 +17,8 @@ private[netflow] object NodeConfig extends Logger {
     netflow: NetFlowConfig,
     sflow: SFlowConfig,
     cassandra: CassandraConfig,
+    http: HttpConfig,
+    tcp: TcpConfig,
     ssl: SslConfig) {
     def sslEngine = for {
       certPath <- ssl.certPath
@@ -32,6 +34,16 @@ private[netflow] object NodeConfig extends Logger {
     }
   }
 
+  case class HttpConfig(
+    listen: Seq[InetSocketAddress],
+    sendFile: Boolean,
+    sendBuffer: Boolean,
+    gzip: Boolean,
+    maxContentLength: Long,
+    maxInitialLineLength: Long,
+    maxChunkSize: Long,
+    maxHeaderSize: Long)
+
   case class CassandraConfig(
     hosts: Seq[String],
     keyspace: String,
@@ -43,6 +55,14 @@ private[netflow] object NodeConfig extends Logger {
     reconnectTimeout: Int,
     readTimeout: Int,
     keyspaceConfig: String)
+
+  case class TcpConfig(
+    sendBufferSize: Option[Long],
+    receiveBufferSize: Option[Long],
+    noDelay: Boolean,
+    keepAlive: Boolean,
+    reuseAddr: Boolean,
+    soLinger: Int)
 
   case class SslConfig(
     certPath: Option[String],
@@ -92,6 +112,24 @@ private[netflow] object NodeConfig extends Logger {
       certPath = Config.getString("server.ssl.p12"),
       certPass = Config.getString("server.ssl.pass"))
 
+    val http = HttpConfig(
+      listen = Config.getInetAddrList("server.http.listen", List("127.0.0.1:8080")),
+      sendFile = Config.getBool("server.http.sendFile", true),
+      sendBuffer = Config.getBool("server.http.sendBuffer", true),
+      gzip = Config.getBool("server.http.gzip", false),
+      maxContentLength = Config.getBytes("server.http.maxContentLength", 1024 * 1024),
+      maxInitialLineLength = Config.getBytes("server.http.maxInitialLineLength", 8 * 1024),
+      maxChunkSize = Config.getBytes("server.http.maxChunkSize", 128 * 1024),
+      maxHeaderSize = Config.getBytes("server.http.maxHeaderSize", 8 * 1024))
+
+    val tcp = TcpConfig(
+      sendBufferSize = Config.getBytes("server.tcp.sendBufferSize"),
+      receiveBufferSize = Config.getBytes("server.tcp.receiveBufferSize"),
+      noDelay = Config.getBool("server.tcp.noDelay", true),
+      keepAlive = Config.getBool("server.tcp.keepAlive", true),
+      reuseAddr = Config.getBool("server.tcp.reuseAddr", true),
+      soLinger = Config.getInt("server.tcp.soLinger", 0))
+
     val server = ServerConfig(
       cores = Config.getInt("server.cores").getOrElse(Runtime.getRuntime.availableProcessors()),
       statuslog = Config.getDuration("server.statuslog", 10 seconds),
@@ -99,7 +137,9 @@ private[netflow] object NodeConfig extends Logger {
       netflow = netflow,
       sflow = sflow,
       cassandra = cassandra,
-      ssl = ssl)
+      ssl = ssl,
+      tcp = tcp,
+      http = http)
     info("Using %s of %s available cores", server.cores, Runtime.getRuntime.availableProcessors())
     server
   }
