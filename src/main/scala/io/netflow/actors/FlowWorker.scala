@@ -1,16 +1,19 @@
 package io.netflow.actors
 
-import java.net.InetAddress
+import java.net.{ InetSocketAddress, InetAddress }
 
+import com.datastax.driver.core.utils.UUIDs
+import com.websudos.phantom.Implicits._
 import io.netflow.flows._
 import io.netflow.lib._
+import io.netflow.timeseries._
 import io.wasted.util._
 import org.joda.time.DateTime
 
 private case class BadDatagram(date: DateTime, sender: InetAddress)
 
 private case class SaveJob(
-  sender: InetAddress,
+  sender: InetSocketAddress,
   flowPacket: FlowPacket,
   prefixes: List[InetPrefix],
   thruputPrefixes: List[InetPrefix])
@@ -23,6 +26,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     // FIXME count bad datagrams
 
     case SaveJob(sender, flowPacket, prefixes, thruputPrefixes) =>
+      val batch = new CounterBatchStatement()
 
       /* Finders which are happy with the first result */
       def isInNetworks(flowAddr: InetAddress) = prefixes.exists(_.contains(flowAddr))
@@ -49,7 +53,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
             ourFlow = true
             // If it is *NOT* *to* another network we monitor
             val trafficType = if (dstNetworks.length == 0) TrafficType.Outbound else TrafficType.OutboundLocal
-            save(flowPacket, flow, flow.srcAddress, trafficType, prefix)
+            add(batch, flowPacket, flow, flow.srcAddress, trafficType, prefix)
           }
 
           // dst - in
@@ -59,7 +63,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
             ourFlow = true
             // If it is *NOT* *to* another network we monitor
             val trafficType = if (srcNetworks.length == 0) TrafficType.Inbound else TrafficType.InboundLocal
-            save(flowPacket, flow, flow.dstAddress, trafficType, prefix)
+            add(batch, flowPacket, flow, flow.dstAddress, trafficType, prefix)
           }
 
           /*
@@ -105,73 +109,105 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
       if (flowPacket.count != flowPacket.flows.length) error(debugStr)
       else if (debugStr.contains("Template")) info(debugStr) else debug(debugStr)
 
-      // count them to database
-      backend.countDatagram(new DateTime, sender, flowPacket.version, flowPacket.flows.length)
-      val it2 = recvdFlows.iterator
-      while (it2.hasNext) {
-        val rcvd = it2.next()
-        backend.countDatagram(new DateTime, sender, rcvd._1, rcvd._2.length)
-      }
+      // first with all fields
+      batch.add(NetFlowStats.insert
+        .value(_.date, DateTime.now)
+        .value(_.sender, sender.getAddress)
+        .value(_.port, sender.getPort)
+        .value(_.version, flowPacket.version)
+        .value(_.flows, flowPacket.flows.length)
+        .value(_.bytes, flowPacket.length))
+
+      // execute the batch
+      batch.future()
   }
 
   // Handle NetFlowData
-  def save(flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: TrafficType.Value, prefix: InetPrefix) {
-    val dir = direction.toString
-    val ip = localAddress.getHostAddress
-    val port = flow.dstPort
-    //val port = if (direction == 'in) flow.dstPort else flow.srcPort
-
-    val date = flowPacket.date
+  def add(batch: CounterBatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: TrafficType.Value, prefix: InetPrefix) {
+    val date = flowPacket.timestamp
     val year = date.getYear.toString
     val month = "%02d".format(date.getMonthOfYear)
     val day = "%02d".format(date.getDayOfMonth)
     val hour = "%02d".format(date.getHourOfDay)
     val minute = "%02d".format(date.getMinuteOfHour)
-
-    def account(prefix: String, value: Long) {
-      hincrBy(prefix + ":years", year, value)
-      hincrBy(prefix + ":" + year, month, value)
-      hincrBy(prefix + ":" + year + month, day, value)
-      hincrBy(prefix + ":" + year + month + day, hour, value)
-      hincrBy(prefix + ":" + year + month + day + "-" + hour, minute, value)
-    }
-
-    // Account per Sender
-    val ipRow = Row(flow.bytes, flow.pkts) & Direction(direction)
-
-    // Account per Sender with Protocols
-    if (prefix.accountPerIPDetails) {
-      ipRow & Protocol(flow.proto) & Port(port)
-    }
-
     val pfx = prefix.prefix.toString
+    val keys = List[String](
+      pfx + ":" + year,
+      pfx + ":" + year + "/" + month,
+      pfx + ":" + year + "/" + month + "/" + day,
+      pfx + ":" + year + "/" + month + "/" + day + "-" + hour,
+      pfx + ":" + year + "/" + month + "/" + day + "-" + hour + ":" + minute)
 
-    // Account per Sender and Network
-    account("bytes:" + dir + ":" + pfx, flow.bytes)
-    account("pkts:" + dir + ":" + pfx, flow.pkts)
+    keys.foreach { key =>
+      // first with all fields
+      batch.add(NetFlowSeries.update
+        .where(_.date eqs key)
+        .and(_.direction eqs direction.toString)
+        .and(_.proto eqs flow.proto)
+        .and(_.srcPort eqs flow.srcPort)
+        .and(_.dstPort eqs flow.dstPort)
+        .and(_.srcIP eqs flow.srcAddress)
+        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
+        .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts))
 
-    // Account per Sender and Network with Protocols
-    if (prefix.accountPerIPDetails) {
-      account("bytes:" + dir + ":" + pfx + ":proto:" + prot, flow.bytes)
-      account("pkts:" + dir + ":" + pfx + ":proto:" + prot, flow.pkts)
+      // then without proto
+      batch.add(NetFlowSeries.update
+        .where(_.date eqs key)
+        .and(_.direction eqs direction.toString)
+        .and(_.proto eqs -1)
+        .and(_.srcPort eqs flow.srcPort)
+        .and(_.dstPort eqs flow.dstPort)
+        .and(_.srcIP eqs flow.srcAddress)
+        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
+        .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts))
 
-      account("bytes:" + dir + ":" + pfx + ":port:" + port, flow.bytes)
-      account("pkts:" + dir + ":" + pfx + ":port:" + port, flow.pkts)
-    }
+      // then without ports
+      batch.add(NetFlowSeries.update
+        .where(_.date eqs key)
+        .and(_.direction eqs direction.toString)
+        .and(_.proto eqs -1)
+        .and(_.srcPort eqs -1)
+        .and(_.dstPort eqs -1)
+        .and(_.srcIP eqs flow.srcAddress)
+        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
+        .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts))
 
-    if (prefix.accountPerIP) {
-      // Account per Sender and IP
-      account("bytes:" + dir + ":" + ip, flow.bytes)
-      account("pkts:" + dir + ":" + ip, flow.pkts)
+      // then without AS
+      batch.add(NetFlowSeries.update
+        .where(_.date eqs key)
+        .and(_.direction eqs direction.toString)
+        .and(_.proto eqs -1)
+        .and(_.srcPort eqs -1)
+        .and(_.dstPort eqs -1)
+        .and(_.srcIP eqs flow.srcAddress)
+        .and(_.dstIP eqs flow.dstAddress)
+        .and(_.srcAS eqs -1)
+        .and(_.dstAS eqs -1)
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts))
 
-      // Account per Sender and IP with Protocols
-      if (prefix.accountPerIPDetails) {
-        account("bytes:" + dir + ":" + ip + ":proto:" + prot, flow.bytes)
-        account("pkts:" + dir + ":" + ip + ":proto:" + prot, flow.pkts)
-
-        account("bytes:" + dir + ":" + ip + ":port:" + port, flow.bytes)
-        account("pkts:" + dir + ":" + ip + ":port:" + port, flow.pkts)
-      }
+      // then without ips
+      batch.add(NetFlowSeries.update
+        .where(_.date eqs key)
+        .and(_.direction eqs direction.toString)
+        .and(_.proto eqs -1)
+        .and(_.srcPort eqs -1)
+        .and(_.dstPort eqs -1)
+        .and(_.srcIP eqs null)
+        .and(_.dstIP eqs null)
+        .and(_.srcAS eqs -1)
+        .and(_.dstAS eqs -1)
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts))
     }
   }
 }

@@ -1,6 +1,6 @@
 package io.netflow.flows.cflow
 
-import java.net.InetAddress
+import java.net.{ InetSocketAddress, InetAddress }
 
 import com.datastax.driver.core.Row
 import com.websudos.phantom.Implicits._
@@ -8,12 +8,13 @@ import io.netflow.lib._
 import io.netty.buffer._
 import io.wasted.util.Tryo
 import net.liftweb.json.JsonDSL._
+import net.liftweb.json.Serialization
 import org.joda.time.DateTime
 
 import scala.util.{ Failure, Try }
 
 abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
-  def apply(sender: InetAddress, buf: ByteBuf, flowsetId: Int, timestamp: DateTime): Try[T] = Try[T] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, flowsetId: Int, timestamp: DateTime): Try[T] = Try[T] {
     val templateId = buf.getUnsignedShort(0)
     if (!(templateId < 0 || templateId > 255)) // 0-255 reserved for flowset ID
       return Failure(new IllegalTemplateIdException(templateId))
@@ -56,13 +57,12 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
     this(sender, templateId, timestamp, map)
   }
 
-  def apply(sender: InetAddress, id: Int, timestamp: DateTime, map: Map[String, Int]): T
+  def apply(sender: InetSocketAddress, id: Int, timestamp: DateTime, map: Map[String, Int]): T
 }
 
 trait Template extends Flow[Template] {
   def versionNumber: Int
   def id: Int
-  def sender: InetAddress
   def map: Map[String, Int]
 
   lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + id
@@ -124,7 +124,9 @@ trait Template extends Flow[Template] {
       }
     }
 
-  lazy val json = ("template" -> id) ~ ("fields" -> map)
+  lazy val json = Serialization.write {
+    ("template" -> id) ~ ("fields" -> map)
+  }
 }
 
 sealed class NetFlowV9Template extends CassandraTable[NetFlowV9Template, NetFlowV9TemplateRecord] {
@@ -135,17 +137,16 @@ sealed class NetFlowV9Template extends CassandraTable[NetFlowV9Template, NetFlow
   object last extends DateTimeColumn(this)
   object map extends MapColumn[NetFlowV9Template, NetFlowV9TemplateRecord, String, Int](this)
 
-  def fromRow(row: Row) = NetFlowV9TemplateRecord(id(row), sender(row),
-    last(row), map(row))
+  def fromRow(row: Row) = NetFlowV9TemplateRecord(id(row), new InetSocketAddress(sender(row), senderPort(row)), last(row), map(row))
 
 }
 
 object NetFlowV9Template extends NetFlowV9Template
 
-case class NetFlowV9TemplateRecord(id: Int, sender: InetAddress, last: DateTime, map: Map[String, Int]) extends Template {
+case class NetFlowV9TemplateRecord(id: Int, sender: InetSocketAddress, last: DateTime, map: Map[String, Int]) extends Template {
   val versionNumber = 9
 }
 
 object NetFlowV9TemplateMeta extends TemplateMeta[NetFlowV9TemplateRecord] {
-  def apply(sender: InetAddress, id: Int, timestamp: DateTime, map: Map[String, Int]) = NetFlowV9TemplateRecord(id, sender, timestamp, map)
+  def apply(sender: InetSocketAddress, id: Int, timestamp: DateTime, map: Map[String, Int]) = NetFlowV9TemplateRecord(id, sender, timestamp, map)
 }

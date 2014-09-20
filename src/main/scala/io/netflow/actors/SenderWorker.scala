@@ -1,22 +1,22 @@
 package io.netflow.actors
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 
+import com.websudos.phantom.Implicits._
 import io.netflow.flows._
 import io.netflow.lib._
 import io.wasted.util._
 import org.joda.time.DateTime
 
-import com.websudos.phantom.Implicits._
 import scala.concurrent.duration._
 
-private[netflow] class SenderWorker(sender: InetAddress) extends Wactor with Logger {
-  override protected def loggerName = "Sender " + sender.getHostAddress
+private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor with Logger {
+  override protected def loggerName = "Sender " + config.ip
   info("Starting for " + loggerName)
 
-  private[actors] val senderPrefixes = new AtomicReference(List.empty[InetPrefix])
-  private[actors] val thruputPrefixes = new AtomicReference(List.empty[InetPrefix])
+  private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
+  private[actors] val thruputPrefixes = new AtomicReference(config.thruputPrefixes)
 
   private var templateCache = Map.empty[Int, cflow.Template]
   def templates = templateCache
@@ -24,7 +24,7 @@ private[netflow] class SenderWorker(sender: InetAddress) extends Wactor with Log
     templateCache += tmpl.id -> tmpl
     tmpl match {
       case nf9: cflow.NetFlowV9TemplateRecord =>
-        cflow.NetFlowV9Template.update.where(_.id eqs nf9.id).and(_.sender eqs tmpl.sender).
+        cflow.NetFlowV9Template.update.where(_.id eqs nf9.id).and(_.sender eqs tmpl.sender.getAddress).
           modify(_.senderPort setTo tmpl.senderPort).
           and(_.last setTo DateTime.now).
           and(_.map setTo tmpl.map).future()
@@ -37,10 +37,11 @@ private[netflow] class SenderWorker(sender: InetAddress) extends Wactor with Log
   private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = handled match {
     case Some(fp) =>
       fp.persist
-      FlowSender.update.where(_.ip eqsToken sender).
+      FlowSender.update.where(_.ip eqsToken config.ip).
         modify(_.last setTo Some(DateTime.now)).
+        and(_.dgrams increment 1).
         and(_.flows increment fp.count).future()
-      FlowManager.save(osender, fp, senderPrefixes.get, thruputPrefixes.get)
+      FlowManager.save(osender, fp, senderPrefixes.get.toList, thruputPrefixes.get.toList)
     case _ =>
       warn("Unable to parse FlowPacket")
       FlowManager.bad(osender)
@@ -55,11 +56,7 @@ private[netflow] class SenderWorker(sender: InetAddress) extends Wactor with Log
           case Some(5) => cflow.NetFlowV5Packet(osender, buf).toOption
           case Some(6) => cflow.NetFlowV6Packet(osender, buf).toOption
           case Some(7) => cflow.NetFlowV7Packet(osender, buf).toOption
-          case Some(9) =>
-            val nf9templates = templateCache.
-              filter(_._2.isInstanceOf[cflow.NetFlowV9TemplateRecord]).
-              map(x => (x._1, x._2.asInstanceOf[cflow.NetFlowV9TemplateRecord]))
-            cflow.NetFlowV9Packet(osender, buf, this).toOption
+          case Some(9) => cflow.NetFlowV9Packet(osender, buf, this).toOption
           case Some(10) => None //Some(cflow.NetFlowV10Packet(sender, buf))
           case _ => None
         }
@@ -90,7 +87,7 @@ private[netflow] class SenderWorker(sender: InetAddress) extends Wactor with Log
       buf.release()
 
     case Shutdown =>
-      SenderManager.removeActorFor(sender)
+      SenderManager.removeActorFor(config.ip)
       templateCache = Map.empty
       this ! Wactor.Die
   }

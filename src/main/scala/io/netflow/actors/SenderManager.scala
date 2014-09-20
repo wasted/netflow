@@ -36,7 +36,7 @@ private[netflow] object SenderManager extends Wactor {
 
         f.onSuccess {
           case Some(psender) =>
-            val actor = new SenderWorker(sender)
+            val actor = new SenderWorker(psender)
             senderActors += sender -> actor
             p.success(actor)
           case _ =>

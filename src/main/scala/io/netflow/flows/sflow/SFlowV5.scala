@@ -6,6 +6,7 @@ import io.netflow.lib._
 import io.netty.buffer._
 import io.wasted.util.Logger
 import net.liftweb.json.JsonDSL._
+import org.joda.time.DateTime
 
 import scala.util.{ Failure, Try }
 
@@ -97,6 +98,7 @@ case class SFlowV5Packet(sender: InetSocketAddress, length: Int, agent: InetAddr
                          agentSubId: Long, sequenceId: Long, uptime: Long, flows: List[SFlowV5]) extends FlowPacket {
   def version = "sFlowV5 Packet"
   def count = flows.length
+  lazy val timestamp = DateTime.now
   def persist: Unit = {
     // FIXME persist
   }

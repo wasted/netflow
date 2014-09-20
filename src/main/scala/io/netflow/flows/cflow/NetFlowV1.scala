@@ -8,6 +8,7 @@ import com.datastax.driver.core.utils.UUIDs
 import com.websudos.phantom.Implicits._
 import io.netflow.lib._
 import io.netty.buffer._
+import net.liftweb.json.JObject
 import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
@@ -198,5 +199,5 @@ case class NetFlowV1Record(sender: InetSocketAddress, length: Int, uptime: Long,
                            snmpInput: Int, snmpOutput: Int) extends NetFlowData[NetFlowV1Record] {
   def version = "NetFlowV1"
 
-  override lazy val jsonExtra = "snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput)
+  override lazy val jsonExtra: JObject = "snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput)
 }

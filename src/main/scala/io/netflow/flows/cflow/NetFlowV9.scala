@@ -83,7 +83,7 @@ object NetFlowV9Packet extends Logger {
             val templateSize = fieldCount * 4 + 4
             if (templateOffset + templateSize < length) {
               val buffer = buf.slice(templateOffset, templateSize)
-              NetFlowV9TemplateMeta(sender.getAddress, buffer, flowsetId, timestamp) match {
+              NetFlowV9TemplateMeta(sender, buffer, flowsetId, timestamp) match {
                 case Success(tmpl) =>
                   actor.setTemplate(tmpl)
                   flows += tmpl
@@ -103,7 +103,7 @@ object NetFlowV9Packet extends Logger {
             val templateSize = scopeLen + optionLen + 6
             if (templateOffset + templateSize < length) {
               val buffer = buf.slice(templateOffset, templateSize)
-              NetFlowV9TemplateMeta(sender.getAddress, buffer, flowsetId, timestamp) match {
+              NetFlowV9TemplateMeta(sender, buffer, flowsetId, timestamp) match {
                 case Success(tmpl) =>
                   actor.setTemplate(tmpl)
                   flows += tmpl
@@ -218,7 +218,7 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
     val srcAddress = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
     val dstAddress = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
     val nextHop = Option(buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)).
-      filter(_.getAddress != "0.0.0.0") // FIXME filter v6
+      filter(_.getHostAddress != "0.0.0.0") // FIXME filter v6
 
     val pkts = buf.getInteger(template, InPKTS, OutPKTS)
     val bytes = buf.getInteger(template, InBYTES, OutBYTES)
@@ -303,7 +303,7 @@ object NetFlowV9Option extends NetFlowV9Option
 case class NetFlowV9OptionRecord(sender: InetSocketAddress, length: Int, template: Int, uptime: Long, timestamp: DateTime,
                                  extra: Map[String, Long]) extends Flow[NetFlowV9OptionRecord] {
   def version = "NetFlowV9Option " + template
-  override lazy val json = Extraction.decompose(extra).asInstanceOf[JObject]
+  override lazy val json = Serialization.write(extra)
 
 }
 

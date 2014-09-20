@@ -5,6 +5,8 @@ import java.net.{ InetAddress, InetSocketAddress }
 import io.netty.buffer.ByteBuf
 import net.liftweb.json.JsonDSL._
 import net.liftweb.json._
+import org.joda.time.DateTime
+import org.joda.time.format.ISODateTimeFormat
 
 trait Flow[T] {
   def version: String
@@ -25,7 +27,7 @@ trait FlowPacket {
   def sender: InetSocketAddress
   def senderIP = sender.getAddress.getHostAddress
   def senderPort = sender.getPort
-  var date = new org.joda.time.DateTime
+  def timestamp: DateTime
   def count: Int
   def flows: List[Flow[_]]
   def persist: Unit
@@ -49,15 +51,15 @@ trait NetFlowData[T] extends Flow[T] {
   def proto: Int
   def tos: Int
   def tcpflags: Int
-  def start: Long
-  def stop: Long
-  def duration = (stop - start).toInt
+  def start: DateTime
+  def stop: DateTime
+  def duration: Long = stop.getMillis - start.getMillis
 
   private def srcAddressIP = srcAddress.getHostAddress
   private def dstAddressIP = dstAddress.getHostAddress
   private def nextHopIP = nextHop.map(_.getHostAddress)
 
-  lazy val json = {
+  lazy val json = Serialization.write {
     ("flowVersion" -> version) ~
       ("flowSender" -> (senderIP + ":" + senderPort)) ~
       ("srcPort" -> srcPort) ~
@@ -71,10 +73,10 @@ trait NetFlowData[T] extends Flow[T] {
       ("tos" -> tos) ~
       ("pkts" -> pkts) ~
       ("bytes" -> bytes) ~
-      ("start" -> start) ~
-      ("stop" -> stop) ~
+      ("start" -> start.toString(ISODateTimeFormat.dateTime())) ~
+      ("stop" -> stop.toString(ISODateTimeFormat.dateTime())) ~
       ("tcpFlags" -> tcpflags) ~ jsonExtra
-  }.toString
+  }
 
   protected def stringExtra = ""
   override def toString = "%s from %s:%s %s:%s (%s) -> %s -> %s:%s (%s) Proto %s - ToS %s - %s pkts - %s bytes %s".format(

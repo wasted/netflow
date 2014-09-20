@@ -4,17 +4,18 @@ import java.net.InetAddress
 
 import com.datastax.driver.core.Row
 import com.websudos.phantom.Implicits._
-import io.wasted.util.{ Tryo, InetPrefix }
+import io.wasted.util.{ InetPrefix, Tryo }
 import org.joda.time.DateTime
 
-case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime], flows: Long,
+case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime], flows: Long, dgrams: Long,
                             prefixes: Set[InetPrefix], thruputPrefixes: Set[InetPrefix]) {
 }
 
 sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
 
-  object ip extends InetAddressColumn(this) with PartitionKey[InetAddress] with ClusteringOrder[InetAddress] with Ascending
+  object ip extends InetAddressColumn(this) with PartitionKey[InetAddress]
   object last extends OptionalDateTimeColumn(this)
+  object dgrams extends CounterColumn(this)
   object flows extends CounterColumn(this)
   object prefixes extends SetColumn[FlowSender, FlowSenderRecord, String](this)
   object thruputPrefixes extends SetColumn[FlowSender, FlowSenderRecord, String](this)
@@ -30,7 +31,7 @@ sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
   private implicit val strings2prefixes = (x: Set[String]) => x.flatMap(string2prefix)
 
   override def fromRow(row: Row): FlowSenderRecord = {
-    FlowSenderRecord(ip(row), last(row), flows(row), prefixes(row), thruputPrefixes(row))
+    FlowSenderRecord(ip(row), last(row), flows(row), dgrams(row), prefixes(row), thruputPrefixes(row))
   }
 }
 
