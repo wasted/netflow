@@ -25,7 +25,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     // FIXME count bad datagrams
 
     case SaveJob(sender, flowPacket, prefixes, thruputPrefixes) =>
-      val batch = new CounterBatchStatement()
+      var batch = new CounterBatchStatement()
 
       /* Finders which are happy with the first result */
       def isInNetworks(flowAddr: InetAddress) = prefixes.exists(_.contains(flowAddr))
@@ -52,7 +52,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
             ourFlow = true
             // If it is *NOT* *to* another network we monitor
             val trafficType = if (dstNetworks.length == 0) TrafficType.Outbound else TrafficType.OutboundLocal
-            add(batch, flowPacket, flow, flow.srcAddress, trafficType, prefix)
+            batch = add(batch, flowPacket, flow, flow.srcAddress, trafficType, prefix)
           }
 
           // dst - in
@@ -62,7 +62,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
             ourFlow = true
             // If it is *NOT* *to* another network we monitor
             val trafficType = if (srcNetworks.length == 0) TrafficType.Inbound else TrafficType.InboundLocal
-            add(batch, flowPacket, flow, flow.dstAddress, trafficType, prefix)
+            batch = add(batch, flowPacket, flow, flow.dstAddress, trafficType, prefix)
           }
 
           /*
@@ -123,7 +123,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
   }
 
   // Handle NetFlowData
-  def add(batch: CounterBatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: TrafficType.Value, prefix: InetPrefix) {
+  def add(batch: CounterBatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: TrafficType.Value, prefix: InetPrefix): CounterBatchStatement = {
     val date = flowPacket.timestamp
     val year = date.getYear.toString
     val month = "%02d".format(date.getMonthOfYear)
@@ -138,9 +138,10 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
       pfx + ":" + year + "/" + month + "/" + day + "-" + hour,
       pfx + ":" + year + "/" + month + "/" + day + "-" + hour + ":" + minute)
 
+    var editBatch = batch
     keys.foreach { key =>
       // first with all fields
-      batch.add(NetFlowSeries.update
+      editBatch = editBatch.add(NetFlowSeries.update
         .where(_.date eqs key)
         .and(_.direction eqs direction.toString)
         .and(_.proto eqs flow.proto)
@@ -154,7 +155,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.pkts increment flow.pkts))
 
       // then without proto
-      batch.add(NetFlowSeries.update
+      editBatch = editBatch.add(NetFlowSeries.update
         .where(_.date eqs key)
         .and(_.direction eqs direction.toString)
         .and(_.proto eqs -1)
@@ -168,7 +169,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.pkts increment flow.pkts))
 
       // then without ports
-      batch.add(NetFlowSeries.update
+      editBatch = editBatch.add(NetFlowSeries.update
         .where(_.date eqs key)
         .and(_.direction eqs direction.toString)
         .and(_.proto eqs -1)
@@ -182,7 +183,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.pkts increment flow.pkts))
 
       // then without AS
-      batch.add(NetFlowSeries.update
+      editBatch = editBatch.add(NetFlowSeries.update
         .where(_.date eqs key)
         .and(_.direction eqs direction.toString)
         .and(_.proto eqs -1)
@@ -196,7 +197,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.pkts increment flow.pkts))
 
       // then without ips
-      batch.add(NetFlowSeries.update
+      editBatch = editBatch.add(NetFlowSeries.update
         .where(_.date eqs key)
         .and(_.direction eqs direction.toString)
         .and(_.proto eqs -1)
@@ -209,5 +210,6 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .modify(_.bytes increment flow.bytes)
         .and(_.pkts increment flow.pkts))
     }
+    editBatch
   }
 }
