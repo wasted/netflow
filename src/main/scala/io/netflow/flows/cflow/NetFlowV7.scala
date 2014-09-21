@@ -232,7 +232,8 @@ object NetFlowV7 extends NetFlowV7
 
 case class NetFlowV7Record(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
                            srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int, start: DateTime, stop: DateTime,
+                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
+                           start: DateTime, stop: DateTime,
                            srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                            snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, flags: Int,
                            routerAddress: InetAddress, packet: UUID)

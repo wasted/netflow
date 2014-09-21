@@ -200,7 +200,8 @@ object NetFlowV1 extends NetFlowV1
 
 case class NetFlowV1Record(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
                            srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int, start: DateTime, stop: DateTime,
+                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
+                           start: DateTime, stop: DateTime,
                            srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                            snmpInput: Int, snmpOutput: Int, packet: UUID) extends NetFlowData[NetFlowV1Record] {
   def version = "NetFlowV1"

@@ -15,7 +15,6 @@ import scala.concurrent._
 
 private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor with Logger {
   override protected def loggerName = config.ip.getHostAddress
-  info("Starting up")
 
   private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
   private[actors] val thruputPrefixes = new AtomicReference(config.thruputPrefixes)
@@ -25,6 +24,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
       .map(x => x.id -> x).toMap
     v9templates
   }
+  info("Starting up with templates: " + templateCache.keys.mkString(", "))
 
   def templates = templateCache
   def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.id -> tmpl

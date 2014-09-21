@@ -133,7 +133,7 @@ trait Template extends Flow[Template] {
 sealed class NetFlowV9Template extends CassandraTable[NetFlowV9Template, NetFlowV9TemplateRecord] {
 
   object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
-  object id extends IntColumn(this) with Index[Int]
+  object id extends IntColumn(this) with PrimaryKey[Int]
   object packet extends TimeUUIDColumn(this) with Index[UUID]
   object senderPort extends IntColumn(this)
   object last extends DateTimeColumn(this)

@@ -42,15 +42,15 @@ package object lib {
       Some(getInteger(template.typeOffset(field), template.typeLen(field)))
     }
 
-    def getInteger(template: flows.cflow.Template, field1: TemplateFields.Value, field2: TemplateFields.Value): Long =
-      getInteger(template, field1) orElse getInteger(template, field2) getOrElse 0L
+    def getInteger(template: flows.cflow.Template, field1: TemplateFields.Value, field2: TemplateFields.Value): Option[Long] =
+      getInteger(template, field1) orElse getInteger(template, field2)
 
     def getInteger(offset: Int, length: Int): Long = length match {
       case 1 => buf.getUnsignedByte(offset).toLong
       case 2 => buf.getUnsignedShort(offset).toLong
       case 3 => buf.getUnsignedMedium(offset).toLong
       case 4 => buf.getUnsignedInt(offset)
-      case 8 => scala.math.BigInt((0 to 7).toArray.map(b => buf.getByte(offset + b))).toLong
+      case 8 => buf.getLong(offset) & 0x00000000ffffffffL
       case _ => 0L
     }
   }

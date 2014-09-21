@@ -78,6 +78,7 @@ trait NetFlowData[T] extends Flow[T] {
       ("bytes" -> bytes) ~
       ("start" -> start.toString(ISODateTimeFormat.dateTime())) ~
       ("stop" -> stop.toString(ISODateTimeFormat.dateTime())) ~
+      ("duration" -> duration) ~
       ("tcpFlags" -> tcpflags) ~ jsonExtra
   }
 

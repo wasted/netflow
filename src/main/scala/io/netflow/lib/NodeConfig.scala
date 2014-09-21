@@ -75,6 +75,7 @@ private[netflow] object NodeConfig extends Logger {
   case class NetFlowConfig(
     listen: Seq[InetSocketAddress],
     persist: Boolean,
+    calculateSamples: Boolean,
     extraFields: Boolean)
 
   private var config: ServerConfig = load()
@@ -102,6 +103,7 @@ private[netflow] object NodeConfig extends Logger {
     val netflow = NetFlowConfig(
       listen = Config.getInetAddrList("netflow.listen", List("0.0.0.0:2055")),
       persist = Config.getBool("netflow.persist", true),
+      calculateSamples = Config.getBool("netflow.calculateSamples", true),
       extraFields = Config.getBool("netflow.extraFields", true))
 
     val sflow = SFlowConfig(

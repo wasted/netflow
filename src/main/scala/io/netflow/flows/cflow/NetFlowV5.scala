@@ -64,17 +64,20 @@ object NetFlowV5Packet {
     val flowSequence = buf.getInteger(16, 4)
     val engineType = buf.getInteger(20, 1).toInt
     val engineId = buf.getInteger(21, 1).toInt
-    val samplingInterval = buf.getInteger(22, 2).toInt
+    // the first 2 bits are the sampling mode, the remaining 14 the interval
+    val sampling = buf.getInteger(22, 2).toInt
+    val samplingInterval = sampling & 0x3FFF
+    val samplingMode = sampling >> 14
 
     val flows: List[NetFlowV5Record] = (0 to count - 1).toList.flatMap { i =>
-      NetFlowV5(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp)
+      NetFlowV5(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp, samplingInterval)
     }
-    NetFlowV5Packet(id, sender, buf.readableBytes, uptime, timestamp, flows, flowSequence, engineType, engineId, samplingInterval)
+    NetFlowV5Packet(id, sender, buf.readableBytes, uptime, timestamp, flows, flowSequence, engineType, engineId, samplingInterval, samplingMode)
   }
 }
 
 case class NetFlowV5Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV5Record],
-                           flowSequence: Long, engineType: Int, engineId: Int, samplingInterval: Int) extends FlowPacket {
+                           flowSequence: Long, engineType: Int, engineId: Int, samplingInterval: Int, samplingMode: Int) extends FlowPacket {
   def version = "NetFlowV5 Packet"
   def count = flows.length
 
@@ -168,15 +171,19 @@ sealed class NetFlowV5 extends CassandraTable[NetFlowV5, NetFlowV5Record] {
    * @param fpId FlowPacket-UUID this Flow arrived on
    * @param uptime Seconds since UNIX Epoch when the exporting device/sender booted
    * @param timestamp DateTime when this flow was exported
+   * @param samplingInterval Interval samples are sent
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime): Option[NetFlowV5Record] = Try[NetFlowV5Record] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime, samplingInterval: Int): Option[NetFlowV5Record] = Try[NetFlowV5Record] {
+    val sampling = NodeConfig.values.netflow.calculateSamples
+    val pkts = buf.getInteger(16, 4)
+    val bytes = buf.getInteger(20, 4)
     NetFlowV5Record(sender, buf.readableBytes(), uptime, timestamp,
       buf.getInteger(32, 2).toInt, // srcPort
       buf.getInteger(34, 2).toInt, // dstPort
       Option(buf.getInteger(40, 2).toInt).filter(_ != -1), // srcAS
       Option(buf.getInteger(42, 2).toInt).filter(_ != -1), // dstAS
-      buf.getInteger(16, 4), // pkts
-      buf.getInteger(20, 4), // bytes
+      if (sampling) pkts * samplingInterval else pkts, // pkts
+      if (sampling) bytes * samplingInterval else bytes, // bytes
       buf.getUnsignedByte(38).toInt, // proto
       buf.getUnsignedByte(39).toInt, // tos
       buf.getUnsignedByte(37).toInt, // tcpflags
@@ -228,7 +235,8 @@ object NetFlowV5 extends NetFlowV5
 
 case class NetFlowV5Record(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
                            srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int, start: DateTime, stop: DateTime,
+                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
+                           start: DateTime, stop: DateTime,
                            srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                            snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, packet: UUID) extends NetFlowData[NetFlowV5Record] {
   def version = "NetFlowV5"

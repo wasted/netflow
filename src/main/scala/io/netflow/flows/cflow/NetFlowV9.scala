@@ -57,7 +57,7 @@ object NetFlowV9Packet extends Logger {
       return Failure(new IncompleteFlowPacketHeaderException)
 
     val count = buf.getInteger(2, 2).toInt
-    val uptime = buf.getInteger(4, 4) / 1000
+    val uptime = buf.getInteger(4, 4)
     val timestamp = new DateTime(buf.getInteger(8, 4) * 1000)
     val id = UUIDs.startOf(timestamp.getMillis)
     val flowSequence = buf.getInteger(12, 4)
@@ -190,8 +190,8 @@ case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
           .value(_.extra, row.extra)
       case row: NetFlowV9TemplateRecord =>
         NetFlowV9Template.update.where(_.sender eqs row.sender.getAddress).
-          modify(_.id setTo row.id).
-          and(_.senderPort setTo row.senderPort).
+          and(_.id eqs row.id).
+          modify(_.senderPort setTo row.senderPort).
           and(_.packet setTo row.packet).
           and(_.last setTo DateTime.now).
           and(_.map setTo row.map)
@@ -224,9 +224,10 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
     val tos = (buf.getInteger(template, SRC_TOS) getOrElse -1L).toInt
 
     // calculate the offset from uptime and subtract that from the timestamp
-    val start = timestamp.minus(buf.getInteger(template, FIRST_SWITCHED).map(uptime - _).getOrElse(0L))
-    val stop = timestamp.minus(buf.getInteger(template, LAST_SWITCHED).map(uptime - _).getOrElse(0L))
-
+    val start = buf.getInteger(template, FIRST_SWITCHED).filter(_ == 0).
+      map(x => timestamp.minus(uptime - x)).getOrElse(timestamp)
+    val stop = buf.getInteger(template, LAST_SWITCHED).filter(_ == 0).
+      map(x => timestamp.minus(uptime - x)).getOrElse(timestamp)
     val tcpflags = (buf.getInteger(template, TCP_FLAGS) getOrElse -1L).toInt
 
     val srcAddress = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
@@ -234,9 +235,8 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
     val nextHop = Option(buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)).
       filter(_.getHostAddress != "0.0.0.0") // FIXME filter v6
 
-    val pkts = buf.getInteger(template, InPKTS, OutPKTS)
-    val bytes = buf.getInteger(template, InBYTES, OutBYTES)
-
+    val pkts = buf.getInteger(template, InPKTS, OutPKTS).get
+    val bytes = buf.getInteger(template, InBYTES, OutBYTES).get
     val extraFields: Map[String, Long] = if (!parseExtraFields) Map() else template.getExtraFields(buf)
     NetFlowV9DataRecord(sender, buf.readableBytes(), template.id, uptime, timestamp, srcPort, dstPort, srcAS, dstAS, pkts, bytes, proto,
       tos, tcpflags, start, stop, srcAddress, dstAddress, nextHop, extraFields, fpId)
@@ -276,7 +276,8 @@ object NetFlowV9Data extends NetFlowV9Data
 
 case class NetFlowV9DataRecord(sender: InetSocketAddress, length: Int, template: Int, uptime: Long, timestamp: DateTime,
                                srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                               pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int, start: DateTime, stop: DateTime,
+                               pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
+                               start: DateTime, stop: DateTime,
                                srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                                extra: Map[String, Long], packet: UUID) extends NetFlowData[NetFlowV9DataRecord] {
   def version = "NetFlowV9Data " + template
