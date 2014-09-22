@@ -135,24 +135,28 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
                             .where(_.sender eqs sender)
                             .and(_.prefix eqs prefix)
                             .and(_.date eqs date)
-                            .and(_.name eqs "all").fetch()
+                            .and(_.name eqs "all").future()
                             .map(f => date -> Extraction.decompose(f).transform {
                               case JField("name", _) => JNothing
+                              case JField("date", _) => JNothing
                             })
                         }
                         val series = Future.sequence(seriesFutures)
-                        val awaitedResult = Await.result(series, 5 seconds).toMap
+                        val awaitedResult = Await.result(series, 1 minute).toMap
                         name -> Extraction.decompose(awaitedResult)
                     }.toMap
                     prefix -> pfxResult
                 }.toMap
-
                 val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK,
                   Some(Serialization.write(result)), Some("text/json"), isKeepAlive(request)))
                 if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
 
               case _ => sendError(ctx, request, HttpResponseStatus.BAD_REQUEST)
             }
+          } onFailure {
+            case t =>
+              if (NodeConfig.values.debugStackTraces) t.printStackTrace()
+              sendError(ctx, request, HttpResponseStatus.INTERNAL_SERVER_ERROR)
           }
 
         case _ =>

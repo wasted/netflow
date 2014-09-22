@@ -60,7 +60,7 @@ private[netflow] class ProtoNegoHandler(
       p.addLast("aggregator", new HttpObjectAggregator(httpc.maxContentLength.toInt))
       p.addLast("encoder", new HttpResponseEncoder())
       if (detectGzip) p.addLast("deflater", new HttpContentCompressor())
-      p.addLast("chunkedWriter", new ChunkedWriteHandler())
+      //p.addLast("chunkedWriter", new ChunkedWriteHandler())
       p.addLast("dispatchHandler", AdminAPIHandler)
       p.remove(this)
     } else {

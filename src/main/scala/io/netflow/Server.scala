@@ -46,8 +46,8 @@ private[netflow] object Server extends Logger { PS =>
                   ch.pipeline.addLast("nego", new ProtoNegoHandler)
                 }
               })
-            NodeConfig.values.tcp.sendBufferSize.map(b => chanTcp.childOption[java.lang.Integer](ChannelOption.SO_SNDBUF, b.toInt))
-            NodeConfig.values.tcp.receiveBufferSize.map(b => chanTcp.childOption[java.lang.Integer](ChannelOption.SO_RCVBUF, b.toInt))
+            chanTcp.childOption[java.lang.Integer](ChannelOption.SO_SNDBUF, NodeConfig.values.tcp.sendBufferSize)
+            chanTcp.childOption[java.lang.Integer](ChannelOption.SO_RCVBUF, NodeConfig.values.tcp.receiveBufferSize)
 
             listeners.foreach { addr =>
               Try(chanTcp.bind(addr).syncUninterruptibly()) match {

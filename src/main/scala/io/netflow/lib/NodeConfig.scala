@@ -63,8 +63,8 @@ private[netflow] object NodeConfig extends Logger {
     keyspaceConfig: String)
 
   case class TcpConfig(
-    sendBufferSize: Option[Long],
-    receiveBufferSize: Option[Long],
+    sendBufferSize: Integer,
+    receiveBufferSize: Integer,
     noDelay: Boolean,
     keepAlive: Boolean,
     reuseAddr: Boolean,
@@ -145,18 +145,18 @@ private[netflow] object NodeConfig extends Logger {
       sendFile = Config.getBool("http.sendFile", true),
       sendBuffer = Config.getBool("http.sendBuffer", true),
       gzip = Config.getBool("http.gzip", false),
-      maxContentLength = Config.getBytes("http.maxContentLength", 1024 * 1024),
+      maxContentLength = Config.getBytes("http.maxContentLength", 10 * 1024 * 1024),
       maxInitialLineLength = Config.getBytes("http.maxInitialLineLength", 8 * 1024),
-      maxChunkSize = Config.getBytes("http.maxChunkSize", 128 * 1024),
+      maxChunkSize = Config.getBytes("http.maxChunkSize", 512 * 1024),
       maxHeaderSize = Config.getBytes("http.maxHeaderSize", 8 * 1024))
 
     val tcp = TcpConfig(
-      sendBufferSize = Config.getBytes("server.tcp.sendBufferSize"),
-      receiveBufferSize = Config.getBytes("server.tcp.receiveBufferSize"),
-      noDelay = Config.getBool("server.tcp.noDelay", true),
-      keepAlive = Config.getBool("server.tcp.keepAlive", true),
-      reuseAddr = Config.getBool("server.tcp.reuseAddr", true),
-      soLinger = Config.getInt("server.tcp.soLinger", 0))
+      sendBufferSize = Config.getBytes("http.tcp.sendBufferSize", 10 * 1024 * 1024).toInt,
+      receiveBufferSize = Config.getBytes("http.tcp.receiveBufferSize", 1024 * 1024).toInt,
+      noDelay = Config.getBool("http.tcp.noDelay", true),
+      keepAlive = Config.getBool("http.tcp.keepAlive", true),
+      reuseAddr = Config.getBool("http.tcp.reuseAddr", true),
+      soLinger = Config.getInt("http.tcp.soLinger", 0))
 
     val server = ServerConfig(
       cores = Config.getInt("server.cores").getOrElse(Runtime.getRuntime.availableProcessors()),
