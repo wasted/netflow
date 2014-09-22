@@ -135,7 +135,7 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
                             .where(_.sender eqs sender)
                             .and(_.prefix eqs prefix)
                             .and(_.date eqs date)
-                            .and(_.name eqs "all").one()
+                            .and(_.name eqs "all").fetch()
                             .map(f => date -> Extraction.decompose(f).transform {
                               case JField("name", _) => JNothing
                             })
