@@ -32,7 +32,6 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
 
   private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = handled match {
     case Some(fp) =>
-      fp.persist()
       FlowSender.update.where(_.ip eqs config.ip).
         modify(_.last setTo Some(DateTime.now)).future()
       FlowManager.save(osender, fp, senderPrefixes.get.toList, thruputPrefixes.get.toList)
@@ -57,6 +56,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
         }
       }
       buf.release()
+      if (NodeConfig.values.netflow.persist) handled.map(_.persist())
       handleFlowPacket(osender, handled)
 
     case SFlow(osender, buf) =>
@@ -77,6 +77,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
             case _ => None
           }
         }
+        if (NodeConfig.values.sflow.persist) handled.map(_.persist())
         handleFlowPacket(osender, handled)
       }
       buf.release()

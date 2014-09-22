@@ -16,7 +16,7 @@ import io.netty.handler.logging.LogLevel
 import io.netty.util.CharsetUtil
 import io.wasted.util._
 import io.wasted.util.http.ExceptionHandler
-import net.liftweb.json.Serialization
+import net.liftweb.json.{ JsonParser, Serialization }
 
 @ChannelHandler.Sharable
 private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHttpRequest] with Logger {
@@ -41,96 +41,78 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
     }
   }
 
-  private def sendError(ctx: ChannelHandlerContext, request: HttpRequest, status: HttpResponseStatus) {
+  private def sendError(ctx: ChannelHandlerContext, request: HttpRequest, status: HttpResponseStatus, body: Option[String] = None) {
     log(LogLevel.INFO, ctx, request, status.code.toString)
-    val response = new DefaultHttpResponse(HTTP_1_1, status)
-    response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-    setContentLength(response, 0)
-    if (!isKeepAlive(request))
-      response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-    // Close the connection as soon as the error message is sent.
-    ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+    val f = ctx.writeAndFlush(WastedHttpResponse.apply(status, body, keepAlive = isKeepAlive(request)))
+    if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
+  }
+
+  private object InetAddressParam {
+    def unapply(a: String): Option[InetAddress] = Tryo(InetAddress.getByName(a))
+  }
+  private object InetPrefixesParam {
+    def unapply(a: List[String]): Option[Set[String]] = Some(a.grouped(2).map(_.mkString("/")).toSet)
   }
 
   def channelRead0(ctx: ChannelHandlerContext, request: FullHttpRequest): Unit = {
-    // If this is a GET request which results in content, we forward it
-    (request.getMethod, request.getUri.split("/").toList.drop(1)) match {
-      case (GET, Nil) =>
-        val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
-        response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-        setContentLength(response, 0)
-        if (!isKeepAlive(request))
-          response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-        // Close the connection as soon as the error message is sent.
-        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+    val headers = WastedHttpHeaders.get(request)
+    AuthValidator(request, headers, handleAuthorized(ctx, request, _))
+  }
 
-      case (GET, "senders" :: Nil) =>
-        val f = FlowSender.select.fetch()
-        f.onFailure { case t => sendError(ctx, request, HttpResponseStatus.INTERNAL_SERVER_ERROR) }
-        f.onSuccess {
-          case senders =>
-            val json = Serialization.write(senders.seq).getBytes(CharsetUtil.UTF_8)
-            val response = new DefaultFullHttpResponse(HTTP_1_1, HttpResponseStatus.OK, Unpooled.wrappedBuffer(json))
-            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-            setContentLength(response, json.length)
-            if (!isKeepAlive(request))
-              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-            // Close the connection as soon as the error message is sent.
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
-        }
+  private def handleAuthorized(ctx: ChannelHandlerContext, request: FullHttpRequest, authed: Boolean) {
+    if (!authed) sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED)
+    else {
+      // If this is a GET request which results in content, we forward it
+      (request.getMethod, request.getUri.split("/").toList.drop(1)) match {
+        case (GET, Nil) =>
+          val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK, None, keepAlive = isKeepAlive(request)))
+          if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
 
-      case (PUT, "sender" :: ip :: prefixes) =>
-        Tryo(InetAddress.getByName(ip)) match {
-          case Some(ipaddr) =>
-            val tba = prefixes.grouped(2).map(_.mkString("/")).toSet
-            FlowSender.update.where(_.ip eqs ipaddr).modify(_.prefixes addAll tba).future()
-            val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
-            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-            setContentLength(response, 0)
-            if (!isKeepAlive(request))
-              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-            // Close the connection as soon as the error message is sent.
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+        case (GET, "senders" :: Nil) =>
+          val f = FlowSender.select.fetch()
+          f.onFailure { case t => sendError(ctx, request, HttpResponseStatus.INTERNAL_SERVER_ERROR) }
+          f.onSuccess {
+            case senders =>
+              val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK,
+                Some(Serialization.write(senders.seq)), Some("text/json"), isKeepAlive(request)))
+              if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
+          }
 
-          case _ =>
-            sendError(ctx, request, HttpResponseStatus.NOT_ACCEPTABLE)
-        }
+        case (PUT, "sender" :: InetAddressParam(ipaddr) :: InetPrefixesParam(tba)) =>
+          FlowSender.update.where(_.ip eqs ipaddr).modify(_.prefixes addAll tba).future()
+          val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK, None, keepAlive = isKeepAlive(request)))
+          if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
 
-      case (DELETE, "sender" :: ip :: Nil) =>
-        Tryo(InetAddress.getByName(ip)) match {
-          case Some(ipaddr) =>
-            FlowSender.delete.where(_.ip eqs ipaddr).future()
-            val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
-            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-            setContentLength(response, 0)
-            if (!isKeepAlive(request))
-              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-            // Close the connection as soon as the error message is sent.
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+        case (DELETE, "sender" :: InetAddressParam(ipaddr) :: Nil) =>
+          FlowSender.delete.where(_.ip eqs ipaddr).future()
+          val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK, None, keepAlive = isKeepAlive(request)))
+          if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
 
-          case _ =>
-            sendError(ctx, request, HttpResponseStatus.NOT_ACCEPTABLE)
-        }
+        case (DELETE, "sender" :: InetAddressParam(ipaddr) :: InetPrefixesParam(tbr)) =>
+          FlowSender.update.where(_.ip eqs ipaddr).modify(_.prefixes removeAll tbr).future()
+          val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK, None, keepAlive = isKeepAlive(request)))
+          if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
 
-      case (DELETE, "sender" :: ip :: prefixes) =>
-        Tryo(InetAddress.getByName(ip)) match {
-          case Some(ipaddr) =>
-            val tbr = prefixes.grouped(2).map(_.mkString("/")).toSet
-            FlowSender.update.where(_.ip eqs ipaddr).modify(_.prefixes removeAll tbr).future()
-            val response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK)
-            response.headers().set(SERVER, "netflow.io " + BuildInfo.version)
-            setContentLength(response, 0)
-            if (!isKeepAlive(request))
-              response.headers().set(CONNECTION, HttpHeaders.Values.CLOSE)
-            // Close the connection as soon as the error message is sent.
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+        case (POST, "stats" :: InetAddressParam(ipaddr) :: InetPrefixesParam(pfxs)) =>
+          val requestBody = request.content().toString(CharsetUtil.UTF_8)
+          val requestJson = JsonParser.parse(requestBody)
+          //get/10.4.20.5/10.4.20.0/24/2001:4cea::/32  { years: [2014,2013,2012,2011], month: [201401, 201402, 201403] }
+          println(requestJson)
 
-          case _ =>
-            sendError(ctx, request, HttpResponseStatus.NOT_ACCEPTABLE)
-        }
+          return ctx.close()
+          val f = FlowSender.select.fetch()
+          f.onFailure { case t => sendError(ctx, request, HttpResponseStatus.INTERNAL_SERVER_ERROR) }
+          f.onSuccess {
+            case senders =>
 
-      case _ =>
-        sendError(ctx, request, HttpResponseStatus.NOT_FOUND)
+              val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK,
+                Some(Serialization.write(senders.seq)), Some("text/json"), isKeepAlive(request)))
+              if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
+          }
+
+        case _ =>
+          sendError(ctx, request, HttpResponseStatus.NOT_FOUND)
+      }
     }
   }
 }

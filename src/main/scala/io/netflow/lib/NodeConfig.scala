@@ -2,9 +2,10 @@ package io.netflow.lib
 
 import java.io.File
 import java.net.InetSocketAddress
+import java.util.UUID
 
 import io.wasted.util.ssl.{ KeyStoreType, Ssl }
-import io.wasted.util.{ Config, Logger }
+import io.wasted.util.{ Tryo, Config, Logger }
 
 import scala.concurrent.duration._
 
@@ -14,6 +15,7 @@ private[netflow] object NodeConfig extends Logger {
     cores: Int,
     statuslog: Duration,
     debugStackTraces: Boolean,
+    admin: AdminConfig,
     netflow: NetFlowConfig,
     sflow: SFlowConfig,
     cassandra: CassandraConfig,
@@ -33,6 +35,10 @@ private[netflow] object NodeConfig extends Logger {
       sslE
     }
   }
+
+  case class AdminConfig(
+    authKey: UUID,
+    signKey: UUID)
 
   case class HttpConfig(
     listen: Seq[InetSocketAddress],
@@ -82,16 +88,16 @@ private[netflow] object NodeConfig extends Logger {
 
   private def load(): ServerConfig = {
     val cassandra = CassandraConfig(
-      keyspace = Config.getString("server.cassandra.keyspace", "netflow"),
-      hosts = Config.getStringList("server.cassandra.hosts", List("localhost")),
-      minConns = Config.getInt("server.cassandra.minConns", 5),
-      maxConns = Config.getInt("server.cassandra.maxConns", 40),
-      minSimRequests = Config.getInt("server.cassandra.minSimRequests", 5),
-      maxSimRequests = Config.getInt("server.cassandra.maxSimRequests", 128),
-      connectTimeout = Config.getInt("server.cassandra.connectTimeout", 5000),
-      reconnectTimeout = Config.getInt("server.cassandra.reconnectTimeout", 5000),
-      readTimeout = Config.getInt("server.cassandra.readTimeout", 60000),
-      keyspaceConfig = Config.getString("server.cassandra.keyspaceConfig",
+      keyspace = Config.getString("cassandra.keyspace", "netflow"),
+      hosts = Config.getStringList("cassandra.hosts", List("localhost")),
+      minConns = Config.getInt("cassandra.minConns", 5),
+      maxConns = Config.getInt("cassandra.maxConns", 40),
+      minSimRequests = Config.getInt("cassandra.minSimRequests", 5),
+      maxSimRequests = Config.getInt("cassandra.maxSimRequests", 128),
+      connectTimeout = Config.getInt("cassandra.connectTimeout", 5000),
+      reconnectTimeout = Config.getInt("cassandra.reconnectTimeout", 5000),
+      readTimeout = Config.getInt("cassandra.readTimeout", 60000),
+      keyspaceConfig = Config.getString("cassandra.keyspaceConfig",
         "WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}"))
 
     val cpus = Runtime.getRuntime.availableProcessors() match {
@@ -99,6 +105,26 @@ private[netflow] object NodeConfig extends Logger {
       case x if x > 8 => x - 2
       case x if x > 4 => x - 1
     }
+
+    val adminAuthKey = Config.getString("admin.authKey").flatMap(ak => Tryo(UUID.fromString(ak))) match {
+      case Some(ak) => ak
+      case _ =>
+        val authKey = UUID.randomUUID()
+        error("Invalid or missing UUID at admin.authKey directive. Generated %s", authKey)
+        authKey
+    }
+
+    val adminSignKey = Config.getString("admin.signKey").flatMap(sk => Tryo(UUID.fromString(sk))) match {
+      case Some(sk) => sk
+      case _ =>
+        val signKey = UUID.randomUUID()
+        error("Invalid or missing UUID at admin.signKey directive. Generated %s", signKey)
+        signKey
+    }
+
+    val admin = AdminConfig(
+      authKey = adminAuthKey,
+      signKey = adminSignKey)
 
     val netflow = NetFlowConfig(
       listen = Config.getInetAddrList("netflow.listen", List("0.0.0.0:2055")),
@@ -111,18 +137,18 @@ private[netflow] object NodeConfig extends Logger {
       persist = Config.getBool("sflow.persist", true))
 
     val ssl = SslConfig(
-      certPath = Config.getString("server.ssl.p12"),
-      certPass = Config.getString("server.ssl.pass"))
+      certPath = Config.getString("http.ssl.p12"),
+      certPass = Config.getString("http.ssl.pass"))
 
     val http = HttpConfig(
-      listen = Config.getInetAddrList("server.http.listen", List("127.0.0.1:8080")),
-      sendFile = Config.getBool("server.http.sendFile", true),
-      sendBuffer = Config.getBool("server.http.sendBuffer", true),
-      gzip = Config.getBool("server.http.gzip", false),
-      maxContentLength = Config.getBytes("server.http.maxContentLength", 1024 * 1024),
-      maxInitialLineLength = Config.getBytes("server.http.maxInitialLineLength", 8 * 1024),
-      maxChunkSize = Config.getBytes("server.http.maxChunkSize", 128 * 1024),
-      maxHeaderSize = Config.getBytes("server.http.maxHeaderSize", 8 * 1024))
+      listen = Config.getInetAddrList("http.listen", List("0.0.0.0:8080")),
+      sendFile = Config.getBool("http.sendFile", true),
+      sendBuffer = Config.getBool("http.sendBuffer", true),
+      gzip = Config.getBool("http.gzip", false),
+      maxContentLength = Config.getBytes("http.maxContentLength", 1024 * 1024),
+      maxInitialLineLength = Config.getBytes("http.maxInitialLineLength", 8 * 1024),
+      maxChunkSize = Config.getBytes("http.maxChunkSize", 128 * 1024),
+      maxHeaderSize = Config.getBytes("http.maxHeaderSize", 8 * 1024))
 
     val tcp = TcpConfig(
       sendBufferSize = Config.getBytes("server.tcp.sendBufferSize"),
@@ -136,6 +162,7 @@ private[netflow] object NodeConfig extends Logger {
       cores = Config.getInt("server.cores").getOrElse(Runtime.getRuntime.availableProcessors()),
       statuslog = Config.getDuration("server.statuslog", 10 seconds),
       debugStackTraces = Config.getBool("server.debugStackTraces", true),
+      admin = admin,
       netflow = netflow,
       sflow = sflow,
       cassandra = cassandra,

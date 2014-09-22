@@ -97,16 +97,46 @@ We are open to suggestions for some more optimal JVM parameters. Please consider
 
 ## REST API
 
-Once it has successfully started, you can start adding authorized senders using the HTTP REST API:
+Once it has successfully started, you can start adding authorized senders using the HTTP REST API.
+To do this, you need to use the admin.authKey and admin.signKey provided by the config.
+In case you haven't configured them, netflow.io will generate random-keys on every start.
+The authKey is like a public-key, the signKey more like a private key, so keep it safe.
+
+In order to authenticate against the API, you have 2 possibilities:
+- Generate a SHA256 HMAC of the authKey using the signKey
+- Generate a SHA256 HMAC of the payload using the signKey (only if you have a payload)
+
+To generate the SHA256 HMAC on your console:
 
 ```shell
-curl -X PUT http://127.0.0.1:8080/sender/172.16.1.1/172.16.1.0/24/10.0.0.0/24
+echo -n "<authKey>" | openssl dgst -sha256 -hmac "<signKey>"
+```      
+     
+It's easiest to use like this:
+
+```shell
+export NF_AUTH_KEY='<authKey>'
+export NF_SIGN_KEY='<signKey>'
+export NF_SIGNED_KEY=$( echo -n "${NF_AUTH_KEY}" | openssl dgst -sha256 -hmac "${NF_SIGN_KEY}" )
+``
+
+This will setup the NetFlow sender 172.16.1.1 which is monitoring 172.16.1.0/24 and 10.0.0.0/24
+    
+```shell
+curl -X PUT \
+    -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+    -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+    -v http://127.0.0.1:8080/sender/172.16.1.1/172.16.1.0/24/10.0.0.0/24
 ```
 
-This will setup the NetFlow sender 172.16.1.1 which is monitoring 172.16.1.0/24 and 10.0.0.0/24. **Of course we also support IPv6!**
+
+**Of course we also support IPv6!**
 
 ```shell
-curl -X PUT http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
+curl -X PUT \
+    -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+    -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+    -v http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
 ```
 
 **Please make sure to always use the first Address of the prefix (being 0 or whatever matches your lowest bit).**
@@ -114,19 +144,28 @@ curl -X PUT http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
 To remove a subnet from the sender, just issue a DELETE instead of PUT with the subnet you want to delete from this sender. This also works with multiples, just like PUT.
                            
 ```shell
-curl -X DELETE http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
+curl -X DELETE \
+    -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+    -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+    -v http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
 ```
 
 To remove a whole sender, just issue a DELETE without any subnet.
                                
 ```shell
-curl -X DELETE http://127.0.0.1:8080/sender/172.16.1.1
+curl -X DELETE \
+    -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+    -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+    -v http://127.0.0.1:8080/sender/172.16.1.1
 ```
 
 For a list of all configured senders
                                
 ```shell
-curl -X GET http://127.0.0.1:8080/senders
+curl -X GET \
+  -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+  -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+  -v http://127.0.0.1:8080/senders
 ```
 
 
