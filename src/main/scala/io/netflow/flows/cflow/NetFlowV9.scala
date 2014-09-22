@@ -192,9 +192,8 @@ case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
             .value(_.extra, row.extra)
         case row: NetFlowV9TemplateRecord =>
           NetFlowV9Template.update.where(_.sender eqs row.sender.getAddress).
-            and(_.number eqs row.number).
+            and(_.id eqs row.number).
             modify(_.senderPort setTo row.senderPort).
-            and(_.id setTo row.id).
             and(_.packet setTo row.packet).
             and(_.last setTo DateTime.now).
             and(_.map setTo row.map)

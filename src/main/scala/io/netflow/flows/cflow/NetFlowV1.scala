@@ -146,11 +146,11 @@ sealed class NetFlowV1 extends CassandraTable[NetFlowV1, NetFlowV1Record] {
    * @param buf Netty ByteBuf Slice containing the UDP Packet
    * @param fpId FlowPacket-UUID this Flow arrived on
    * @param uptime Millis since UNIX Epoch when the exporting device/sender booted
-   * @param ts DateTime when this flow was exported
+   * @param timestamp DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, ts: DateTime): Option[NetFlowV1Record] =
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime): Option[NetFlowV1Record] =
     Try[NetFlowV1Record] {
-      NetFlowV1Record(UUIDs.timeBased(), sender, buf.readableBytes(), uptime, ts,
+      NetFlowV1Record(UUIDs.timeBased(), sender, buf.readableBytes(), uptime, timestamp,
         buf.getUnsignedInteger(32, 2).toInt, // srcPort
         buf.getUnsignedInteger(34, 2).toInt, // dstPort
         None, None, // srcAS and dstAS
@@ -159,8 +159,8 @@ sealed class NetFlowV1 extends CassandraTable[NetFlowV1, NetFlowV1Record] {
         buf.getUnsignedByte(38).toInt, // proto
         buf.getUnsignedByte(39).toInt, // tos
         buf.getUnsignedByte(40).toInt, // tcpflags
-        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => ts.minus(uptime - x)), // start
-        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => ts.minus(uptime - x)), // stop
+        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => timestamp.minus(uptime - x)), // start
+        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => timestamp.minus(uptime - x)), // stop
         buf.getInetAddress(0, 4), // srcAddress
         buf.getInetAddress(4, 4), // dstAddress
         Option(buf.getInetAddress(8, 4)).filter(_.getHostAddress != "0.0.0.0"), // nextHop

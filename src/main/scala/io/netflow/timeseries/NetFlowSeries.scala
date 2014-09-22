@@ -1,30 +1,43 @@
 package io.netflow.timeseries
 
+import java.net.InetAddress
+
 import com.datastax.driver.core.Row
 import com.websudos.phantom.Implicits._
 import io.netflow.lib._
+import io.wasted.util.InetPrefix
 
-case class NetFlowSeriesRecord(date: String, direction: TrafficType.Value, proto: Int, bytes: Long, pkts: Long,
-                               src: String, dst: String,
-                               srcPort: Int, dstPort: Int,
-                               srcAS: Int, dstAS: Int)
+case class NetFlowSeriesRecord(sender: InetAddress, prefix: InetPrefix, date: String, name: String, bytes: Long, pkts: Long,
+                               direction: TrafficType.Value, proto: Option[Int],
+                               src: Option[String], dst: Option[String],
+                               srcPort: Option[Int], dstPort: Option[Int], srcAS: Option[Int], dstAS: Option[Int])
 
 sealed class NetFlowSeries extends CassandraTable[NetFlowSeries, NetFlowSeriesRecord] {
 
-  object date extends StringColumn(this) with PartitionKey[String]
+  object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
+  object prefix extends StringColumn(this) with PartitionKey[String]
+  object date extends StringColumn(this) with PrimaryKey[String]
+  object name extends StringColumn(this) with PrimaryKey[String]
   object direction extends StringColumn(this) with PrimaryKey[String]
-  object proto extends IntColumn(this) with PrimaryKey[Int]
-  object srcPort extends IntColumn(this) with PrimaryKey[Int]
-  object dstPort extends IntColumn(this) with PrimaryKey[Int]
+
   object bytes extends CounterColumn(this)
   object pkts extends CounterColumn(this)
-  object src extends StringColumn(this) with PrimaryKey[String]
-  object dst extends StringColumn(this) with PrimaryKey[String]
-  object srcAS extends IntColumn(this) with PrimaryKey[Int]
-  object dstAS extends IntColumn(this) with PrimaryKey[Int]
+
+  object proto extends OptionalIntColumn(this) with Index[Option[Int]]
+  object srcPort extends OptionalIntColumn(this) with Index[Option[Int]]
+  object dstPort extends OptionalIntColumn(this) with Index[Option[Int]]
+  object src extends OptionalStringColumn(this) with Index[Option[String]]
+  object dst extends OptionalStringColumn(this) with Index[Option[String]]
+  object srcAS extends OptionalIntColumn(this) with Index[Option[Int]]
+  object dstAS extends OptionalIntColumn(this) with Index[Option[Int]]
 
   override def fromRow(row: Row): NetFlowSeriesRecord = {
-    NetFlowSeriesRecord(date(row), TrafficType.withName(direction(row)), proto(row), bytes(row), pkts(row),
+    val prefixT = prefix(row).split("/")
+    assert(prefixT.length == 2, "Invalid Prefix of %s".format(prefix(row)))
+    val pfx = InetAddress.getByName(prefixT(0))
+    val pfxLen = prefixT(1).toInt
+    NetFlowSeriesRecord(sender(row), InetPrefix(pfx, pfxLen), date(row), name(row), bytes(row), pkts(row),
+      TrafficType.withName(direction(row)), proto(row),
       src(row), dst(row), srcPort(row), dstPort(row), srcAS(row), dstAS(row))
   }
 }

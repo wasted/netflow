@@ -25,7 +25,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     // FIXME count bad datagrams
 
     case SaveJob(sender, flowPacket, prefixes, thruputPrefixes) =>
-      var batch = new CounterBatchStatement()
+      var batch = new BatchStatement()
 
       /* Filters to get a list of prefixes that match */
       def findNetworks(flowAddr: InetAddress) = prefixes.filter(_.contains(flowAddr))
@@ -82,7 +82,9 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
       val passedFlowsStr = flowPacket.flows.length + "/" + flowPacket.count + " passed"
 
       val recvdFlows = flowPacket.flows.groupBy(_.version)
-      val recvdFlowsStr = recvdFlows.toList.sortBy(_._1).map(fc => if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length).mkString(", ")
+      val recvdFlowsStr = recvdFlows.toList.sortBy(_._1).map { fc =>
+        if (fc._2.length == 1) fc._1 else fc._1 + ": " + fc._2.length
+      }.mkString(", ")
 
       // log an elaborate string to loglevel info describing this packet.
       // Warning: can produce huge amounts of logs if written to disk.
@@ -104,7 +106,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
   }
 
   // Handle NetFlowData
-  def add(batch: CounterBatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress, direction: TrafficType.Value, prefix: InetPrefix): CounterBatchStatement = {
+  def add(batch: BatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress,
+          direction: TrafficType.Value, prefix: InetPrefix): BatchStatement = {
     val date = flowPacket.timestamp
     val year = date.getYear.toString
     val month = "%02d".format(date.getMonthOfYear)
@@ -113,83 +116,103 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     val minute = "%02d".format(date.getMinuteOfHour)
     val pfx = prefix.prefix.getHostAddress
     val keys = List[String](
-      pfx + ":" + year,
-      pfx + ":" + year + "/" + month,
-      pfx + ":" + year + "/" + month + "/" + day,
-      pfx + ":" + year + "/" + month + "/" + day + "-" + hour,
-      pfx + ":" + year + "/" + month + "/" + day + "-" + hour + ":" + minute)
+      year,
+      year + "/" + month,
+      year + "/" + month + "/" + day,
+      year + "/" + month + "/" + day + "-" + hour,
+      year + "/" + month + "/" + day + "-" + hour + ":" + minute)
+
+    //get/10.4.20.5/10.4.20.0/24/2001:4cea::/32  { years: [2014,2013,2012,2011], month: [201401, 201402, 201403] }
 
     var editBatch = batch
     keys.foreach { key =>
-      // first with all fields
+
+      // all counters
       editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.date eqs key)
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "all")
         .and(_.direction eqs direction.toString)
-        .and(_.proto eqs flow.proto)
-        .and(_.srcPort eqs flow.srcPort)
-        .and(_.dstPort eqs flow.dstPort)
-        .and(_.src eqs flow.srcAddress.getHostAddress)
-        .and(_.dst eqs flow.dstAddress.getHostAddress)
-        .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
-        .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
         .modify(_.bytes increment flow.bytes)
         .and(_.pkts increment flow.pkts))
 
-      // then without proto
+      // proto counters
       editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.date eqs key)
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "proto:" + flow.proto)
         .and(_.direction eqs direction.toString)
-        .and(_.proto eqs -1)
-        .and(_.srcPort eqs flow.srcPort)
-        .and(_.dstPort eqs flow.dstPort)
-        .and(_.src eqs flow.srcAddress.getHostAddress)
-        .and(_.dst eqs flow.dstAddress.getHostAddress)
-        .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
-        .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts))
+        .and(_.pkts increment flow.pkts)
+        .and(_.proto setTo Some(flow.proto)))
 
-      // then without ports
+      // src-port counters
       editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.date eqs key)
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "srcport:" + flow.srcPort)
         .and(_.direction eqs direction.toString)
-        .and(_.proto eqs -1)
-        .and(_.srcPort eqs -1)
-        .and(_.dstPort eqs -1)
-        .and(_.src eqs flow.srcAddress.getHostAddress)
-        .and(_.dst eqs flow.dstAddress.getHostAddress)
-        .and(_.srcAS eqs flow.srcAS.getOrElse(-1)) // minus one for cassandra
-        .and(_.dstAS eqs flow.dstAS.getOrElse(-1)) // minus one for cassandra
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts))
+        .and(_.pkts increment flow.pkts)
+        .and(_.srcPort setTo Some(flow.srcPort)))
 
-      // then without AS
+      // dst-port counters
       editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.date eqs key)
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "dstport:" + flow.dstPort)
         .and(_.direction eqs direction.toString)
-        .and(_.proto eqs -1)
-        .and(_.srcPort eqs -1)
-        .and(_.dstPort eqs -1)
-        .and(_.src eqs flow.srcAddress.getHostAddress)
-        .and(_.dst eqs flow.dstAddress.getHostAddress)
-        .and(_.srcAS eqs -1)
-        .and(_.dstAS eqs -1)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts))
+        .and(_.pkts increment flow.pkts)
+        .and(_.dstPort setTo Some(flow.dstPort)))
 
-      // then without ips
+      // src-as counters
       editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.date eqs key)
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "srcas:" + flow.srcAS)
         .and(_.direction eqs direction.toString)
-        .and(_.proto eqs -1)
-        .and(_.srcPort eqs -1)
-        .and(_.dstPort eqs -1)
-        .and(_.src eqs pfx)
-        .and(_.dst eqs pfx)
-        .and(_.srcAS eqs -1)
-        .and(_.dstAS eqs -1)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts))
+        .and(_.pkts increment flow.pkts)
+        .and(_.srcAS setTo flow.srcAS))
+
+      // dst-as counters
+      editBatch = editBatch.add(NetFlowSeries.update
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "dstas:" + flow.dstAS)
+        .and(_.direction eqs direction.toString)
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts)
+        .and(_.dstAS setTo flow.dstAS))
+
+      // src-ip counters
+      editBatch = editBatch.add(NetFlowSeries.update
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "srcip:" + flow.srcAddress.getHostAddress)
+        .and(_.direction eqs direction.toString)
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts)
+        .and(_.src setTo Some(flow.srcAddress.getHostAddress)))
+
+      // dst-port counters
+      editBatch = editBatch.add(NetFlowSeries.update
+        .where(_.sender eqs flowPacket.sender.getAddress)
+        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+        .and(_.date eqs key)
+        .and(_.name eqs "dstip:" + flow.dstAddress.getHostAddress)
+        .and(_.direction eqs direction.toString)
+        .modify(_.bytes increment flow.bytes)
+        .and(_.pkts increment flow.pkts)
+        .and(_.dst setTo Some(flow.dstAddress.getHostAddress)))
     }
     editBatch
   }
