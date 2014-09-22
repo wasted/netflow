@@ -25,7 +25,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     // FIXME count bad datagrams
 
     case SaveJob(sender, flowPacket, prefixes, thruputPrefixes) =>
-      var batch = new BatchStatement()
+      var batch = new CounterBatchStatement()
 
       /* Filters to get a list of prefixes that match */
       def findNetworks(flowAddr: InetAddress) = prefixes.filter(_.contains(flowAddr))
@@ -106,8 +106,8 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
   }
 
   // Handle NetFlowData
-  def add(batch: BatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress,
-          direction: TrafficType.Value, prefix: InetPrefix): BatchStatement = {
+  def add(batch: CounterBatchStatement, flowPacket: FlowPacket, flow: NetFlowData[_], localAddress: InetAddress,
+          direction: TrafficType.Value, prefix: InetPrefix): CounterBatchStatement = {
     val date = flowPacket.timestamp
     val year = date.getYear.toString
     val month = "%02d".format(date.getMonthOfYear)
