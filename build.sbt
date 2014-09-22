@@ -59,6 +59,7 @@ net.virtualvoid.sbt.graph.Plugin.graphSettings
 resolvers ++= Seq(
   "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
   "wasted.io/repo" at "http://repo.wasted.io/mvn",
+  //"Websudos releases" at "http://maven.websudos.co.uk/ext-release-local",
   "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
   "Twitter's Repository" at "http://maven.twttr.com/",
   "Typesafe Ivy Repo" at "http://repo.typesafe.com/typesafe/ivy-releases",

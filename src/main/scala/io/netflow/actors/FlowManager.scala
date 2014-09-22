@@ -26,7 +26,7 @@ private[netflow] object FlowManager extends Logger {
     worker ! BadDatagram(DateTime.now, sender.getAddress)
   }
 
-  def save(sender: InetSocketAddress, flowPacket: FlowPacket, pfx: List[InetPrefix], tpfx: List[InetPrefix]) = {
-    worker ! SaveJob(sender, flowPacket, pfx, tpfx)
+  def save(sender: InetSocketAddress, flowPacket: FlowPacket, pfx: List[InetPrefix]) = {
+    worker ! SaveJob(sender, flowPacket, pfx)
   }
 }

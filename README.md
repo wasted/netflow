@@ -123,20 +123,20 @@ export NF_SIGNED_KEY=$( echo -n "${NF_AUTH_KEY}" | openssl dgst -sha256 -hmac "$
 This will setup the NetFlow sender 172.16.1.1 which is monitoring 172.16.1.0/24 and 10.0.0.0/24
     
 ```shell
-curl -X PUT \
+curl -X PUT -d '{"prefixes":[{"prefix":"172.16.1.0","prefixLen":24}]}' \
     -H "X-Io-Auth: ${NF_AUTH_KEY}" \
     -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
-    -v http://127.0.0.1:8080/sender/172.16.1.1/172.16.1.0/24/10.0.0.0/24
+    -v http://127.0.0.1:8080/senders/172.16.1.1
 ```
 
 
 **Of course we also support IPv6!**
 
 ```shell
-curl -X PUT \
+curl -X PUT -d '{"prefixes":[{"prefix":"2001:db8::","prefixLen":32}]}' \
     -H "X-Io-Auth: ${NF_AUTH_KEY}" \
     -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
-    -v http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
+    -v http://127.0.0.1:8080/senders/172.16.1.1
 ```
 
 **Please make sure to always use the first Address of the prefix (being 0 or whatever matches your lowest bit).**
@@ -144,10 +144,10 @@ curl -X PUT \
 To remove a subnet from the sender, just issue a DELETE instead of PUT with the subnet you want to delete from this sender. This also works with multiples, just like PUT.
                            
 ```shell
-curl -X DELETE \
+curl -X DELETE -d '{"prefixes":[{"prefix":"2001:db8::","prefixLen":32}]}' \
     -H "X-Io-Auth: ${NF_AUTH_KEY}" \
     -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
-    -v http://127.0.0.1:8080/sender/172.16.1.1/2001:db8::/32
+    -v http://127.0.0.1:8080/senders/172.16.1.1
 ```
 
 To remove a whole sender, just issue a DELETE without any subnet.
@@ -156,7 +156,7 @@ To remove a whole sender, just issue a DELETE without any subnet.
 curl -X DELETE \
     -H "X-Io-Auth: ${NF_AUTH_KEY}" \
     -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
-    -v http://127.0.0.1:8080/sender/172.16.1.1
+    -v http://127.0.0.1:8080/senders/172.16.1.1
 ```
 
 For a list of all configured senders
@@ -167,7 +167,28 @@ curl -X GET \
   -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
   -v http://127.0.0.1:8080/senders
 ```
-
+    
+Querying for statistics
+                               
+```shell
+curl -X POST -d '{
+  "2001:db8::/32":{ 
+    "years":["2013", "2014"], 
+    "months":["2013-01", "2013-02"], 
+    "days":["2014-02-02"], 
+    "hours":["2014-02-02:05"],
+    "minutes":[
+      "2014-02-02:0500",
+      "2014-02-02:0501",
+      "2014-02-02:0502",
+      "2014-02-02:0503",
+      "2014-02-02:0504"
+    ]
+  }}' \
+  -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+  -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+  -v http://127.0.0.1:8080/stats/172.16.1.1
+```
 
 ## FAQ - Frequently Asked Questions
 

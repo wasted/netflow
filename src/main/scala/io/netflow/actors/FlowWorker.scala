@@ -14,8 +14,7 @@ private case class BadDatagram(date: DateTime, sender: InetAddress)
 private case class SaveJob(
   sender: InetSocketAddress,
   flowPacket: FlowPacket,
-  prefixes: List[InetPrefix],
-  thruputPrefixes: List[InetPrefix])
+  prefixes: List[InetPrefix])
 
 private[netflow] class FlowWorker(num: Int) extends Wactor {
   override val loggerName = "FlowWorker %02d:".format(num)
@@ -24,13 +23,13 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     case BadDatagram(date, sender) =>
     // FIXME count bad datagrams
 
-    case SaveJob(sender, flowPacket, prefixes, thruputPrefixes) =>
+    case SaveJob(sender, flowPacket, prefixes) =>
       var batch = new CounterBatchStatement()
 
       /* Filters to get a list of prefixes that match */
       def findNetworks(flowAddr: InetAddress) = prefixes.filter(_.contains(flowAddr))
-      def findThruputNetworks(flow: NetFlowData[_]) =
-        thruputPrefixes.filter(x => x.contains(flow.srcAddress) || x.contains(flow.dstAddress))
+      //def findThruputNetworks(flow: NetFlowData[_]) =
+      //thruputPrefixes.filter(x => x.contains(flow.srcAddress) || x.contains(flow.dstAddress))
 
       flowPacket.flows foreach {
         case tmpl: cflow.Template =>
@@ -58,9 +57,9 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
           }
 
           // thruput
-          findThruputNetworks(flow) foreach { prefix =>
-            //thruput(sender, flow, prefix, flow.dstAddress)
-          }
+          //findThruputNetworks(flow) foreach { prefix =>
+          //thruput(sender, flow, prefix, flow.dstAddress)
+          //}
 
           if (!ourFlow) debug("Ignoring Flow: %s", flow)
         case _ =>

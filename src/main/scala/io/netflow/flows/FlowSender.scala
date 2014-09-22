@@ -7,8 +7,7 @@ import com.websudos.phantom.Implicits._
 import io.wasted.util.{ InetPrefix, Tryo }
 import org.joda.time.DateTime
 
-case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime],
-                            prefixes: Set[InetPrefix], thruputPrefixes: Set[InetPrefix]) {
+case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime], prefixes: Set[InetPrefix]) {
 }
 
 sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
@@ -16,7 +15,6 @@ sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
   object ip extends InetAddressColumn(this) with PartitionKey[InetAddress]
   object last extends OptionalDateTimeColumn(this)
   object prefixes extends SetColumn[FlowSender, FlowSenderRecord, String](this)
-  object thruputPrefixes extends SetColumn[FlowSender, FlowSenderRecord, String](this)
 
   private def string2prefix(str: String): Option[InetPrefix] = {
     val split = str.split("/")
@@ -29,7 +27,7 @@ sealed class FlowSender extends CassandraTable[FlowSender, FlowSenderRecord] {
   private implicit val strings2prefixes = (x: Set[String]) => x.flatMap(string2prefix)
 
   override def fromRow(row: Row): FlowSenderRecord = {
-    FlowSenderRecord(ip(row), last(row), prefixes(row), thruputPrefixes(row))
+    FlowSenderRecord(ip(row), last(row), prefixes(row))
   }
 }
 

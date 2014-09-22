@@ -17,7 +17,6 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
   override protected def loggerName = config.ip.getHostAddress
 
   private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
-  private[actors] val thruputPrefixes = new AtomicReference(config.thruputPrefixes)
 
   private var templateCache: Map[Int, cflow.Template] = {
     val v9templates = Await.result(cflow.NetFlowV9Template.select.where(_.sender eqs config.ip).fetch(), 30 seconds)
@@ -34,7 +33,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
     case Some(fp) =>
       FlowSender.update.where(_.ip eqs config.ip).
         modify(_.last setTo Some(DateTime.now)).future()
-      FlowManager.save(osender, fp, senderPrefixes.get.toList, thruputPrefixes.get.toList)
+      FlowManager.save(osender, fp, senderPrefixes.get.toList)
     case _ =>
       warn("Unable to parse FlowPacket")
       FlowManager.bad(osender)
