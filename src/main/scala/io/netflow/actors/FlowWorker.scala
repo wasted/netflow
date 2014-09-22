@@ -167,25 +167,29 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .modify(_.bytes increment flow.bytes)
         .and(_.pkts increment flow.pkts))
 
-      // src-as counters
-      editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.sender eqs flowPacket.sender.getAddress)
-        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
-        .and(_.date eqs key)
-        .and(_.name eqs "srcas:" + flow.srcAS)
-        .and(_.direction eqs direction.toString)
-        .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts))
+      if (flow.srcAS.isDefined) {
+        // src-as counters
+        editBatch = editBatch.add(NetFlowSeries.update
+          .where(_.sender eqs flowPacket.sender.getAddress)
+          .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+          .and(_.date eqs key)
+          .and(_.name eqs "srcas:" + flow.srcAS)
+          .and(_.direction eqs direction.toString)
+          .modify(_.bytes increment flow.bytes)
+          .and(_.pkts increment flow.pkts))
+      }
 
-      // dst-as counters
-      editBatch = editBatch.add(NetFlowSeries.update
-        .where(_.sender eqs flowPacket.sender.getAddress)
-        .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
-        .and(_.date eqs key)
-        .and(_.name eqs "dstas:" + flow.dstAS)
-        .and(_.direction eqs direction.toString)
-        .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts))
+      if (flow.dstAS.isDefined) {
+        // dst-as counters
+        editBatch = editBatch.add(NetFlowSeries.update
+          .where(_.sender eqs flowPacket.sender.getAddress)
+          .and(_.prefix eqs pfx + "/" + prefix.prefixLen)
+          .and(_.date eqs key)
+          .and(_.name eqs "dstas:" + flow.dstAS)
+          .and(_.direction eqs direction.toString)
+          .modify(_.bytes increment flow.bytes)
+          .and(_.pkts increment flow.pkts))
+      }
 
       // src-ip counters
       editBatch = editBatch.add(NetFlowSeries.update
