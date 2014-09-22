@@ -145,8 +145,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "proto:" + flow.proto)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.proto setTo Some(flow.proto)))
+        .and(_.pkts increment flow.pkts))
 
       // src-port counters
       editBatch = editBatch.add(NetFlowSeries.update
@@ -156,8 +155,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "srcport:" + flow.srcPort)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.srcPort setTo Some(flow.srcPort)))
+        .and(_.pkts increment flow.pkts))
 
       // dst-port counters
       editBatch = editBatch.add(NetFlowSeries.update
@@ -167,8 +165,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "dstport:" + flow.dstPort)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.dstPort setTo Some(flow.dstPort)))
+        .and(_.pkts increment flow.pkts))
 
       // src-as counters
       editBatch = editBatch.add(NetFlowSeries.update
@@ -178,8 +175,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "srcas:" + flow.srcAS)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.srcAS setTo flow.srcAS))
+        .and(_.pkts increment flow.pkts))
 
       // dst-as counters
       editBatch = editBatch.add(NetFlowSeries.update
@@ -189,8 +185,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "dstas:" + flow.dstAS)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.dstAS setTo flow.dstAS))
+        .and(_.pkts increment flow.pkts))
 
       // src-ip counters
       editBatch = editBatch.add(NetFlowSeries.update
@@ -200,8 +195,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "srcip:" + flow.srcAddress.getHostAddress)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.src setTo Some(flow.srcAddress.getHostAddress)))
+        .and(_.pkts increment flow.pkts))
 
       // dst-port counters
       editBatch = editBatch.add(NetFlowSeries.update
@@ -211,8 +205,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
         .and(_.name eqs "dstip:" + flow.dstAddress.getHostAddress)
         .and(_.direction eqs direction.toString)
         .modify(_.bytes increment flow.bytes)
-        .and(_.pkts increment flow.pkts)
-        .and(_.dst setTo Some(flow.dstAddress.getHostAddress)))
+        .and(_.pkts increment flow.pkts))
     }
     editBatch
   }
