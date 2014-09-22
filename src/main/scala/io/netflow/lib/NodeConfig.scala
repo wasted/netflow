@@ -3,8 +3,8 @@ package io.netflow.lib
 import java.io.File
 import java.net.InetSocketAddress
 
-import io.wasted.util.ssl.{KeyStoreType, Ssl}
-import io.wasted.util.{Config, Logger}
+import io.wasted.util.ssl.{ KeyStoreType, Ssl }
+import io.wasted.util.{ Config, Logger }
 
 import scala.concurrent.duration._
 

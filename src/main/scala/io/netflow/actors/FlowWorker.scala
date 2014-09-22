@@ -1,6 +1,6 @@
 package io.netflow.actors
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 
 import com.websudos.phantom.Implicits._
 import io.netflow.flows._

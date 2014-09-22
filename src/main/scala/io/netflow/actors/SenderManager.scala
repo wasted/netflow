@@ -10,7 +10,7 @@ import io.wasted.util._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ Future, Promise }
 
 private[netflow] object SenderManager extends Wactor {
   info("Starting up")

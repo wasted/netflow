@@ -4,7 +4,7 @@ import java.net.InetAddress
 
 import com.datastax.driver.core.Row
 import com.websudos.phantom.Implicits._
-import io.wasted.util.{InetPrefix, Tryo}
+import io.wasted.util.{ InetPrefix, Tryo }
 import org.joda.time.DateTime
 
 case class FlowSenderRecord(ip: InetAddress, last: Option[DateTime],
