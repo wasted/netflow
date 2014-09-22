@@ -9,9 +9,9 @@ import io.netflow.lib._
 import io.wasted.util._
 import org.joda.time.DateTime
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
+import scala.concurrent.duration._
 
 private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor with Logger {
   override protected def loggerName = config.ip.getHostAddress

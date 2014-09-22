@@ -2,6 +2,7 @@ package io.netflow.actors
 
 import java.net.InetAddress
 
+import com.twitter.util._
 import com.websudos.phantom.Implicits._
 import io.netflow.flows.FlowSender
 import io.netflow.lib._
@@ -9,8 +10,7 @@ import io.wasted.util._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{ Future, Promise }
-import com.twitter.util._
+import scala.concurrent.{Future, Promise}
 
 private[netflow] object SenderManager extends Wactor {
   info("Starting up")

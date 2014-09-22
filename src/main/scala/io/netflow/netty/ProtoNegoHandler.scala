@@ -4,7 +4,7 @@ import io.netflow.lib.NodeConfig
 import io.netty.buffer._
 import io.netty.channel._
 import io.netty.handler.codec.ByteToMessageDecoder
-import io.netty.handler.codec.compression.{ ZlibCodecFactory, ZlibWrapper }
+import io.netty.handler.codec.compression.{ZlibCodecFactory, ZlibWrapper}
 import io.netty.handler.codec.http._
 import io.netty.handler.ssl.SslHandler
 import io.netty.handler.stream.ChunkedWriteHandler

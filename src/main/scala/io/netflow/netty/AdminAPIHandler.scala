@@ -1,12 +1,12 @@
 package io.netflow.netty
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 
 import com.websudos.phantom.Implicits._
 import io.netflow.flows.FlowSender
 import io.netflow.lib._
-import io.netty.buffer.{ Unpooled, PooledByteBufAllocator }
-import io.netty.channel.{ ChannelFutureListener, ChannelHandler, ChannelHandlerContext, SimpleChannelInboundHandler }
+import io.netty.buffer.Unpooled
+import io.netty.channel.{ChannelFutureListener, ChannelHandler, ChannelHandlerContext, SimpleChannelInboundHandler}
 import io.netty.handler.codec.http.HttpHeaders.Names._
 import io.netty.handler.codec.http.HttpHeaders._
 import io.netty.handler.codec.http.HttpMethod._

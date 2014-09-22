@@ -1,7 +1,7 @@
 package io.netflow.lib
 
 import com.datastax.driver.core._
-import com.datastax.driver.core.policies.{ ConstantReconnectionPolicy, DefaultRetryPolicy }
+import com.datastax.driver.core.policies.{ConstantReconnectionPolicy, DefaultRetryPolicy}
 import io.netflow.flows._
 import io.netflow.flows.cflow._
 import io.netflow.timeseries._

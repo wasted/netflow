@@ -3,7 +3,7 @@ package io.netflow
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 
-import io.netflow.actors.{ FlowManager, SenderManager }
+import io.netflow.actors.{FlowManager, SenderManager}
 import io.netflow.lib._
 import io.netflow.netty._
 import io.netty.bootstrap._
@@ -13,7 +13,7 @@ import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio._
 import io.wasted.util._
 
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 private[netflow] object Server extends Logger { PS =>
   private val _eventLoop = new AtomicReference[NioEventLoopGroup](null)

@@ -1,6 +1,6 @@
 package io.netflow.flows.cflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
 import com.datastax.driver.core.Row
@@ -13,7 +13,7 @@ import net.liftweb.json.JsonDSL._
 import net.liftweb.json.Serialization
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Try }
+import scala.util.{Failure, Try}
 
 abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
   def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, flowsetId: Int, timestamp: DateTime): Try[T] = Try[T] {
@@ -67,7 +67,7 @@ trait Template extends Flow[Template] {
   def number: Int
   def map: Map[String, Int]
 
-  lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + id
+  lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + number
   lazy val stringMap = map.mapValues(_.toString)
   lazy val arrayMap: Array[String] = map.flatMap(b => Array(b._1, b._2.toString)).toArray
   def objectMap = map.map(b => (b._1, b._2.toString)).toMap

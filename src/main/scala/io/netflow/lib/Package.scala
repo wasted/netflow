@@ -3,10 +3,10 @@ package io.netflow
 import java.net.InetAddress
 
 import io.netty.buffer._
-import io.wasted.util.{ InetPrefix, WheelTimer }
+import io.wasted.util.{InetPrefix, WheelTimer}
 import net.liftweb.json._
 
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 package object lib {
 
