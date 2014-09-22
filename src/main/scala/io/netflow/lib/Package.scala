@@ -3,16 +3,16 @@ package io.netflow
 import java.net.InetAddress
 
 import io.netty.buffer._
-import io.wasted.util.{ InetPrefix, WheelTimer }
+import io.wasted.util._
 import net.liftweb.json._
-
+import org.joda.time.DateTime
 import scala.util.{ Failure, Success, Try }
 
 package object lib {
 
   import io.netflow.flows.cflow.TemplateFields
   implicit val wheelTimer = WheelTimer()
-  implicit val formats = net.liftweb.json.DefaultFormats + new InetPrefixSerializer
+  implicit val formats = net.liftweb.json.DefaultFormats + new InetPrefixSerializer + new DirectionSerializer + new DateTimeSerializer
   implicit val session = CassandraConnection.session
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")
@@ -62,6 +62,22 @@ package object lib {
     },
     {
       case x: InetAddress => JString(x.getHostAddress)
+    }))
+
+  class DirectionSerializer extends CustomSerializer[TrafficType.Value](format => (
+    {
+      case JObject(JField("direction", JString(name)) :: Nil) => TrafficType.withName(name)
+    },
+    {
+      case x: TrafficType.Value => JString(x.toString)
+    }))
+
+  class DateTimeSerializer extends CustomSerializer[DateTime](format => (
+    {
+      case JObject(JField("date", JString(date)) :: Nil) => new DateTime(date)
+    },
+    {
+      case x: DateTime => JString(format.dateFormat.format(x.toDate))
     }))
 }
 

@@ -17,8 +17,9 @@ import io.wasted.util._
 import io.wasted.util.http.ExceptionHandler
 import net.liftweb.json._
 
-import scala.concurrent.Await
+import scala.concurrent._
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 @ChannelHandler.Sharable
 private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHttpRequest] with Logger {
@@ -121,27 +122,37 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
 
         case (POST, "stats" :: InetAddressParam(sender) :: Nil) =>
           val requestBody = request.content().toString(CharsetUtil.UTF_8)
-          JsonParser.parseOpt(requestBody) match {
-            case Some(json: JObject) =>
-              val result = json.obj map {
-                case JField(prefix, fields: JObject) =>
-                  prefix -> fields.obj.map {
-                    case JField(name, keysJ: JArray) =>
-                      val keys = keysJ.values.map { case JString(key) => key }
-                      val series = NetFlowSeries.select
-                        .where(_.sender eqs sender)
-                        .and(_.prefix eqs prefix)
-                        .and(_.date in keys)
-                        .and(_.name eqs "all").fetch()
-                      name -> Await.result(series, 5 seconds).map(f => f.date -> f).toMap
-                  }
-              }
+          Future {
+            JsonParser.parseOpt(requestBody) match {
+              case Some(json: JObject) =>
+                val result = json.obj.map {
+                  case JField(prefix, fields: JObject) =>
+                    val pfxResult = fields.obj.map {
+                      case JField(name, keysJ: JArray) =>
+                        val keys = keysJ.extract[List[String]]
+                        val seriesFutures = keys.map { date =>
+                          NetFlowSeries.select
+                            .where(_.sender eqs sender)
+                            .and(_.prefix eqs prefix)
+                            .and(_.date eqs date)
+                            .and(_.name eqs "all").one()
+                            .map(f => date -> Extraction.decompose(f).transform {
+                              case JField("name", _) => JNothing
+                            })
+                        }
+                        val series = Future.sequence(seriesFutures)
+                        val awaitedResult = Await.result(series, 5 seconds).toMap
+                        name -> Extraction.decompose(awaitedResult)
+                    }.toMap
+                    prefix -> pfxResult
+                }.toMap
 
-              val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK,
-                Some(Serialization.write(result)), Some("text/json"), isKeepAlive(request)))
-              if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
+                val f = ctx.writeAndFlush(WastedHttpResponse.apply(HttpResponseStatus.OK,
+                  Some(Serialization.write(result)), Some("text/json"), isKeepAlive(request)))
+                if (!isKeepAlive(request)) f.addListener(ChannelFutureListener.CLOSE)
 
-            case _ => sendError(ctx, request, HttpResponseStatus.BAD_REQUEST)
+              case _ => sendError(ctx, request, HttpResponseStatus.BAD_REQUEST)
+            }
           }
 
         case _ =>

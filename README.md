@@ -167,8 +167,17 @@ curl -X GET \
   -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
   -v http://127.0.0.1:8080/senders
 ```
+
+For information about a specific sender
+                               
+```shell
+curl -X GET \
+  -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+  -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+  -v http://127.0.0.1:8080/senders/172.16.1.1
+```
     
-Querying for statistics
+Querying for statistics (more to come here)
                                
 ```shell
 curl -X POST -d '{
@@ -176,13 +185,13 @@ curl -X POST -d '{
     "years":["2013", "2014"], 
     "months":["2013-01", "2013-02"], 
     "days":["2014-02-02"], 
-    "hours":["2014-02-02:05"],
+    "hours":["2014-02-02 05"],
     "minutes":[
-      "2014-02-02:0500",
-      "2014-02-02:0501",
-      "2014-02-02:0502",
-      "2014-02-02:0503",
-      "2014-02-02:0504"
+      "2014-02-02 05:00",
+      "2014-02-02 05:01",
+      "2014-02-02 05:02",
+      "2014-02-02 05:03",
+      "2014-02-02 05:04"
     ]
   }}' \
   -H "X-Io-Auth: ${NF_AUTH_KEY}" \
