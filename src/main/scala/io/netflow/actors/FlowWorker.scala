@@ -27,18 +27,14 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     case SaveJob(sender, flowPacket, prefixes, thruputPrefixes) =>
       var batch = new CounterBatchStatement()
 
-      /* Finders which are happy with the first result */
-      def isInNetworks(flowAddr: InetAddress) = prefixes.exists(_.contains(flowAddr))
-      def isInThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.exists(_.contains(flowAddr))
-
       /* Filters to get a list of prefixes that match */
       def findNetworks(flowAddr: InetAddress) = prefixes.filter(_.contains(flowAddr))
-      def findThruputNetworks(flowAddr: InetAddress) = thruputPrefixes.filter(_.contains(flowAddr))
+      def findThruputNetworks(flow: NetFlowData[_]) =
+        thruputPrefixes.filter(x => x.contains(flow.srcAddress) || x.contains(flow.dstAddress))
 
-      val it1 = flowPacket.flows.iterator
-      while (it1.hasNext) it1.next() match {
+      flowPacket.flows foreach {
         case tmpl: cflow.Template =>
-        /* Handle NetFlowData */
+        // FIXME maybe add thruput notification
         case flow: NetFlowData[_] =>
           var ourFlow = false
 
@@ -46,40 +42,25 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
           val dstNetworks = findNetworks(flow.dstAddress)
 
           // src - out
-          var it3 = srcNetworks.iterator
-          while (it3.hasNext) {
-            val prefix = it3.next()
+          srcNetworks foreach { prefix =>
             ourFlow = true
             // If it is *NOT* *to* another network we monitor
-            val trafficType = if (dstNetworks.length == 0) TrafficType.Outbound else TrafficType.OutboundLocal
+            val trafficType = if (dstNetworks.isEmpty) TrafficType.Outbound else TrafficType.OutboundLocal
             batch = add(batch, flowPacket, flow, flow.srcAddress, trafficType, prefix)
           }
 
           // dst - in
-          it3 = dstNetworks.iterator
-          while (it3.hasNext) {
-            val prefix = it3.next()
+          dstNetworks foreach { prefix =>
             ourFlow = true
             // If it is *NOT* *to* another network we monitor
-            val trafficType = if (srcNetworks.length == 0) TrafficType.Inbound else TrafficType.InboundLocal
+            val trafficType = if (srcNetworks.isEmpty) TrafficType.Inbound else TrafficType.InboundLocal
             batch = add(batch, flowPacket, flow, flow.dstAddress, trafficType, prefix)
           }
 
-          /*
-          // thruput - in
-          it3 = findThruputNetworks(flow.srcAddress).iterator
-          while (it3.hasNext) {
-            val prefix = it3.next()
-            thruput(sender, flow, prefix, flow.dstAddress)
+          // thruput
+          findThruputNetworks(flow) foreach { prefix =>
+            //thruput(sender, flow, prefix, flow.dstAddress)
           }
-
-          // thruput - out
-          it3 = findThruputNetworks(flow.dstAddress).iterator
-          while (it3.hasNext) {
-            val prefix = it3.next()
-            thruput(sender, flow, prefix, flow.srcAddress)
-          }
-          */
 
           if (!ourFlow) debug("Ignoring Flow: %s", flow)
         case _ =>

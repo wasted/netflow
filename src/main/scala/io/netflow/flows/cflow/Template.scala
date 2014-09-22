@@ -4,6 +4,7 @@ import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import com.datastax.driver.core.Row
+import com.datastax.driver.core.utils.UUIDs
 import com.websudos.phantom.Implicits._
 import io.netflow.lib._
 import io.netty.buffer._
@@ -37,8 +38,8 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
           idx += 1
         }
       case 1 | 3 =>
-        val scopeLen = buf.getInteger(2, 2).toInt
-        val optionLen = buf.getInteger(4, 2).toInt
+        val scopeLen = buf.getUnsignedInteger(2, 2).toInt
+        val optionLen = buf.getUnsignedInteger(4, 2).toInt
         var offset = 6
         var curLen = 0
         while (curLen < scopeLen + optionLen) {
@@ -63,7 +64,7 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
 
 trait Template extends Flow[Template] {
   def versionNumber: Int
-  def id: Int
+  def number: Int
   def map: Map[String, Int]
 
   lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + id
@@ -119,38 +120,39 @@ trait Template extends Flow[Template] {
 
   def getExtraFields(buf: ByteBuf): Map[String, Long] =
     extraFields.foldRight(Map[String, Long]()) { (field, map) =>
-      buf.getInteger(this, field) match {
+      buf.getUnsignedInteger(this, field) match {
         case Some(v) => map ++ Map(field.toString -> v)
         case _ => map
       }
     }
 
   lazy val json = Serialization.write {
-    ("template" -> id) ~ ("fields" -> map)
+    ("template" -> number) ~ ("fields" -> map)
   }
 }
 
 sealed class NetFlowV9Template extends CassandraTable[NetFlowV9Template, NetFlowV9TemplateRecord] {
 
   object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
-  object id extends IntColumn(this) with PrimaryKey[Int]
+  object number extends IntColumn(this) with PrimaryKey[Int]
   object packet extends TimeUUIDColumn(this) with Index[UUID]
+  object id extends UUIDColumn(this)
   object senderPort extends IntColumn(this)
   object last extends DateTimeColumn(this)
   object map extends MapColumn[NetFlowV9Template, NetFlowV9TemplateRecord, String, Int](this)
 
-  def fromRow(row: Row) = NetFlowV9TemplateRecord(id(row), new InetSocketAddress(sender(row), senderPort(row)),
+  def fromRow(row: Row) = NetFlowV9TemplateRecord(id(row), number(row), new InetSocketAddress(sender(row), senderPort(row)),
     packet(row), last(row), map(row))
 
 }
 
 object NetFlowV9Template extends NetFlowV9Template
 
-case class NetFlowV9TemplateRecord(id: Int, sender: InetSocketAddress, packet: UUID, last: DateTime, map: Map[String, Int]) extends Template {
+case class NetFlowV9TemplateRecord(id: UUID, number: Int, sender: InetSocketAddress, packet: UUID, last: DateTime, map: Map[String, Int]) extends Template {
   val versionNumber = 9
 }
 
 object NetFlowV9TemplateMeta extends TemplateMeta[NetFlowV9TemplateRecord] {
   def apply(sender: InetSocketAddress, id: Int, packet: UUID, timestamp: DateTime, map: Map[String, Int]) =
-    NetFlowV9TemplateRecord(id, sender, packet, timestamp, map)
+    NetFlowV9TemplateRecord(UUIDs.timeBased(), id, sender, packet, timestamp, map)
 }

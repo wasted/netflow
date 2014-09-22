@@ -67,7 +67,7 @@ object SFlowV5Packet extends Logger {
    * @param buf Netty ByteBuf containing the UDP Packet
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf): Try[SFlowV5Packet] = Try[SFlowV5Packet] {
-    val version = buf.getInteger(0, 4).toInt
+    val version = buf.getUnsignedInteger(0, 4).toInt
     if (version != 5) return Failure(new InvalidFlowVersionException(version))
 
     buf.readerIndex(0)
@@ -75,15 +75,15 @@ object SFlowV5Packet extends Logger {
     if (buf.readableBytes < 28)
       return Failure(new IncompleteFlowPacketHeaderException)
 
-    val agentIPversion = if (buf.getInteger(4, 4) == 1L) 4 else 6
+    val agentIPversion = if (buf.getUnsignedInteger(4, 4) == 1L) 4 else 6
     val agentLength = if (agentIPversion == 4) 4 else 16
     val agent = buf.getInetAddress(8, agentLength)
 
     var offset = 8 + agentLength
-    val agentSubId = buf.getInteger(offset, 4)
-    val sequenceId = buf.getInteger(offset + 4, 4)
-    val uptime = buf.getInteger(offset + 8, 4)
-    val count = buf.getInteger(offset + 12, 4).toInt
+    val agentSubId = buf.getUnsignedInteger(offset, 4)
+    val sequenceId = buf.getUnsignedInteger(offset + 4, 4)
+    val uptime = buf.getUnsignedInteger(offset + 8, 4)
+    val count = buf.getUnsignedInteger(offset + 12, 4).toInt
     val id = UUIDs.timeBased()
     offset = offset + 16
 
@@ -130,7 +130,7 @@ object SFlowV5 {
   //}
 }
 
-case class SFlowV5(sender: InetSocketAddress, length: Int, packet: UUID) extends Flow[SFlowV5] {
+case class SFlowV5(id: UUID, sender: InetSocketAddress, length: Int, packet: UUID) extends Flow[SFlowV5] {
   def version = "sFlowV5 Flow"
 
   lazy val json = {

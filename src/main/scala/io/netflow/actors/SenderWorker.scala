@@ -21,18 +21,18 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
 
   private var templateCache: Map[Int, cflow.Template] = {
     val v9templates = Await.result(cflow.NetFlowV9Template.select.where(_.sender eqs config.ip).fetch(), 30 seconds)
-      .map(x => x.id -> x).toMap
+      .map(x => x.number -> x).toMap
     v9templates
   }
   info("Starting up with templates: " + templateCache.keys.mkString(", "))
 
   def templates = templateCache
-  def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.id -> tmpl
+  def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.number -> tmpl
   private var cancellable = Shutdown.schedule()
 
   private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = handled match {
     case Some(fp) =>
-      fp.persist
+      fp.persist()
       FlowSender.update.where(_.ip eqs config.ip).
         modify(_.last setTo Some(DateTime.now)).future()
       FlowManager.save(osender, fp, senderPrefixes.get.toList, thruputPrefixes.get.toList)
@@ -51,7 +51,8 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
           case Some(6) => cflow.NetFlowV6Packet(osender, buf).toOption
           case Some(7) => cflow.NetFlowV7Packet(osender, buf).toOption
           case Some(9) => cflow.NetFlowV9Packet(osender, buf, this).toOption
-          case Some(10) => None //Some(cflow.NetFlowV10Packet(sender, buf))
+          case Some(10) =>
+            info("We do not handle NetFlow IPFIX yet"); None //Some(cflow.NetFlowV10Packet(sender, buf))
           case _ => None
         }
       }

@@ -3,7 +3,6 @@ package io.netflow.lib
 import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
-import com.datastax.driver.core.utils.UUIDs
 import io.netty.buffer.ByteBuf
 import net.liftweb.json.JsonDSL._
 import net.liftweb.json._
@@ -11,6 +10,7 @@ import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 
 trait Flow[T] {
+  def id: UUID
   def version: String
   def length: Int
   def sender: InetSocketAddress
@@ -33,7 +33,7 @@ trait FlowPacket {
   def timestamp: DateTime
   def count: Int
   def flows: List[Flow[_]]
-  def persist: Unit
+  def persist(): Unit
 }
 
 /**
@@ -54,21 +54,19 @@ trait NetFlowData[T] extends Flow[T] {
   def proto: Int
   def tos: Int
   def tcpflags: Int
-  def start: DateTime
-  def stop: DateTime
-  def duration: Long = stop.getMillis - start.getMillis
+  def start: Option[DateTime]
+  def stop: Option[DateTime]
+  def duration: Option[Long] = for { sto <- stop; sta <- start } yield sto.getMillis - sta.getMillis
 
-  private def srcAddressIP = srcAddress.getHostAddress
-  private def dstAddressIP = dstAddress.getHostAddress
-  private def nextHopIP = nextHop.map(_.getHostAddress)
+  private lazy val nextHopIP = nextHop.map(_.getHostAddress)
 
   lazy val json = Serialization.write {
     ("flowVersion" -> version) ~
       ("flowSender" -> (senderIP + ":" + senderPort)) ~
       ("srcPort" -> srcPort) ~
       ("dstPort" -> dstPort) ~
-      ("srcAddress" -> srcAddressIP) ~
-      ("dstAddress" -> dstAddressIP) ~
+      ("srcAddress" -> srcAddress.getHostAddress) ~
+      ("dstAddress" -> dstAddress.getHostAddress) ~
       ("srcAS" -> srcAS) ~
       ("dstAS" -> dstAS) ~
       ("nextHop" -> nextHopIP) ~
@@ -76,8 +74,8 @@ trait NetFlowData[T] extends Flow[T] {
       ("tos" -> tos) ~
       ("pkts" -> pkts) ~
       ("bytes" -> bytes) ~
-      ("start" -> start.toString(ISODateTimeFormat.dateTime())) ~
-      ("stop" -> stop.toString(ISODateTimeFormat.dateTime())) ~
+      ("start" -> start.map(_.toString(ISODateTimeFormat.dateTime()))) ~
+      ("stop" -> stop.map(_.toString(ISODateTimeFormat.dateTime()))) ~
       ("duration" -> duration) ~
       ("tcpFlags" -> tcpflags) ~ jsonExtra
   }

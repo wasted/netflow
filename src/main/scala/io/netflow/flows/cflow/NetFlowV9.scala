@@ -48,7 +48,7 @@ object NetFlowV9Packet extends Logger {
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf, actor: SenderWorker): Try[NetFlowV9Packet] = Try[NetFlowV9Packet] {
     val length = buf.readableBytes()
-    val version = buf.getInteger(0, 2).toInt
+    val version = buf.getUnsignedInteger(0, 2).toInt
     if (version != 9) return Failure(new InvalidFlowVersionException(version))
 
     val senderIP = sender.getAddress.getHostAddress
@@ -56,12 +56,12 @@ object NetFlowV9Packet extends Logger {
     if (length < headerSize)
       return Failure(new IncompleteFlowPacketHeaderException)
 
-    val count = buf.getInteger(2, 2).toInt
-    val uptime = buf.getInteger(4, 4)
-    val timestamp = new DateTime(buf.getInteger(8, 4) * 1000)
+    val count = buf.getUnsignedInteger(2, 2).toInt
+    val uptime = buf.getUnsignedInteger(4, 4)
+    val timestamp = new DateTime(buf.getUnsignedInteger(8, 4) * 1000)
     val id = UUIDs.startOf(timestamp.getMillis)
-    val flowSequence = buf.getInteger(12, 4)
-    val sourceId = buf.getInteger(16, 4)
+    val flowSequence = buf.getUnsignedInteger(12, 4)
+    val sourceId = buf.getUnsignedInteger(16, 4)
 
     var flowsetCounter = 0
     var packetOffset = headerSize
@@ -70,8 +70,8 @@ object NetFlowV9Packet extends Logger {
     // because whenever we append something to our vector, the old vectors need to get GC'd
     val flows = scala.collection.mutable.ArrayBuffer[Flow[_]]()
     while (flowsetCounter < count && packetOffset < length) {
-      val flowsetId = buf.getInteger(packetOffset, 2).toInt
-      val flowsetLength = buf.getInteger(packetOffset + 2, 2).toInt
+      val flowsetId = buf.getUnsignedInteger(packetOffset, 2).toInt
+      val flowsetLength = buf.getUnsignedInteger(packetOffset + 2, 2).toInt
       if (flowsetLength == 0) return Failure(new IllegalFlowSetLengthException)
       if (packetOffset + flowsetLength > length) return Failure(new ShortFlowPacketException)
 
@@ -99,8 +99,8 @@ object NetFlowV9Packet extends Logger {
           debug("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + ":" + senderPort)
           var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           do {
-            val scopeLen = buf.getInteger(templateOffset + 2, 2).toInt
-            val optionLen = buf.getInteger(templateOffset + 4, 2).toInt
+            val scopeLen = buf.getUnsignedInteger(templateOffset + 2, 2).toInt
+            val optionLen = buf.getUnsignedInteger(templateOffset + 4, 2).toInt
             val templateSize = scopeLen + optionLen + 6
             if (templateOffset + templateSize < length) {
               val buffer = buf.slice(templateOffset, templateSize)
@@ -145,60 +145,63 @@ object NetFlowV9Packet extends Logger {
   }
 }
 
-case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[Flow[_]],
+case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long,
+                           timestamp: DateTime, flows: List[Flow[_]],
                            flowSequence: Long, sourceId: Long) extends FlowPacket {
   def version = "NetFlowV9 Packet"
   def count = flows.length
 
-  def persist = flows.foldLeft(new BatchStatement()) { (b, flowRow) =>
-    val statement = flowRow match {
-      case row: NetFlowV9DataRecord =>
-        NetFlowV9Data.insert
-          .value(_.id, UUIDs.timeBased())
-          .value(_.packet, id)
-          .value(_.sender, row.sender.getAddress)
-          .value(_.timestamp, row.timestamp)
-          .value(_.template, row.template)
-          .value(_.uptime, row.uptime)
-          .value(_.senderPort, row.senderPort)
-          .value(_.length, row.length)
-          .value(_.srcPort, row.srcPort)
-          .value(_.dstPort, row.dstPort)
-          .value(_.srcAS, row.srcAS)
-          .value(_.dstAS, row.dstAS)
-          .value(_.pkts, row.pkts)
-          .value(_.bytes, row.bytes)
-          .value(_.proto, row.proto)
-          .value(_.tos, row.tos)
-          .value(_.tcpflags, row.tcpflags)
-          .value(_.start, row.start)
-          .value(_.stop, row.stop)
-          .value(_.srcAddress, row.srcAddress)
-          .value(_.dstAddress, row.dstAddress)
-          .value(_.nextHop, row.nextHop)
-          .value(_.extra, row.extra)
-      case row: NetFlowV9OptionRecord =>
-        NetFlowV9Option.insert
-          .value(_.id, UUIDs.timeBased())
-          .value(_.packet, id)
-          .value(_.sender, row.sender.getAddress)
-          .value(_.timestamp, row.timestamp)
-          .value(_.template, row.template)
-          .value(_.uptime, row.uptime)
-          .value(_.senderPort, row.senderPort)
-          .value(_.length, row.length)
-          .value(_.extra, row.extra)
-      case row: NetFlowV9TemplateRecord =>
-        NetFlowV9Template.update.where(_.sender eqs row.sender.getAddress).
-          and(_.id eqs row.id).
-          modify(_.senderPort setTo row.senderPort).
-          and(_.packet setTo row.packet).
-          and(_.last setTo DateTime.now).
-          and(_.map setTo row.map)
-      //case nf10: cflow.NetFlowV10TemplateRecord => FIXME Netflow 10
-    }
-    b.add(statement)
-  }.future()
+  def persist() = flows.foldLeft((0, new BatchStatement())) {
+    case ((count, b), flowRow) =>
+      val statement = flowRow match {
+        case row: NetFlowV9DataRecord =>
+          NetFlowV9Data.insert
+            .value(_.id, UUIDs.startOf(timestamp.getMillis + count))
+            .value(_.packet, id)
+            .value(_.sender, row.sender.getAddress)
+            .value(_.timestamp, row.timestamp)
+            .value(_.template, row.template)
+            .value(_.uptime, row.uptime)
+            .value(_.senderPort, row.senderPort)
+            .value(_.length, row.length)
+            .value(_.srcPort, row.srcPort)
+            .value(_.dstPort, row.dstPort)
+            .value(_.srcAS, row.srcAS)
+            .value(_.dstAS, row.dstAS)
+            .value(_.pkts, row.pkts)
+            .value(_.bytes, row.bytes)
+            .value(_.proto, row.proto)
+            .value(_.tos, row.tos)
+            .value(_.tcpflags, row.tcpflags)
+            .value(_.start, row.start)
+            .value(_.stop, row.stop)
+            .value(_.srcAddress, row.srcAddress)
+            .value(_.dstAddress, row.dstAddress)
+            .value(_.nextHop, row.nextHop)
+            .value(_.extra, row.extra)
+        case row: NetFlowV9OptionRecord =>
+          NetFlowV9Option.insert
+            .value(_.id, UUIDs.startOf(timestamp.getMillis + count))
+            .value(_.packet, id)
+            .value(_.sender, row.sender.getAddress)
+            .value(_.timestamp, row.timestamp)
+            .value(_.template, row.template)
+            .value(_.uptime, row.uptime)
+            .value(_.senderPort, row.senderPort)
+            .value(_.length, row.length)
+            .value(_.extra, row.extra)
+        case row: NetFlowV9TemplateRecord =>
+          NetFlowV9Template.update.where(_.sender eqs row.sender.getAddress).
+            and(_.number eqs row.number).
+            modify(_.senderPort setTo row.senderPort).
+            and(_.id setTo row.id).
+            and(_.packet setTo row.packet).
+            and(_.last setTo DateTime.now).
+            and(_.map setTo row.map)
+        //case nf10: cflow.NetFlowV10TemplateRecord => FIXME Netflow 10
+      }
+      (count + 1, b.add(statement))
+  }._2.future()
 }
 
 sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRecord] {
@@ -214,31 +217,33 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
    * @param template NetFlow Template for this Flow
    * @param timestamp DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9TemplateRecord, uptime: Long, timestamp: DateTime) = Try[NetFlowV9DataRecord] {
-    val srcPort = buf.getInteger(template, L4_SRC_PORT).get.toInt
-    val dstPort = buf.getInteger(template, L4_DST_PORT).get.toInt
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9TemplateRecord,
+            uptime: Long, timestamp: DateTime) = Try[NetFlowV9DataRecord] {
+    val srcPort = buf.getUnsignedInteger(template, L4_SRC_PORT).get.toInt
+    val dstPort = buf.getUnsignedInteger(template, L4_DST_PORT).get.toInt
 
-    val srcAS = buf.getInteger(template, SRC_AS).map(_.toInt).filter(_ != -1)
-    val dstAS = buf.getInteger(template, DST_AS).map(_.toInt).filter(_ != -1)
-    val proto = (buf.getInteger(template, PROT) getOrElse -1L).toInt
-    val tos = (buf.getInteger(template, SRC_TOS) getOrElse -1L).toInt
+    val srcAS = buf.getUnsignedInteger(template, SRC_AS).map(_.toInt).filter(_ != -1)
+    val dstAS = buf.getUnsignedInteger(template, DST_AS).map(_.toInt).filter(_ != -1)
+    val proto = (buf.getUnsignedInteger(template, PROT) getOrElse -1L).toInt
+    val tos = (buf.getUnsignedInteger(template, SRC_TOS) getOrElse -1L).toInt
 
     // calculate the offset from uptime and subtract that from the timestamp
-    val start = buf.getInteger(template, FIRST_SWITCHED).filter(_ == 0).
-      map(x => timestamp.minus(uptime - x)).getOrElse(timestamp)
-    val stop = buf.getInteger(template, LAST_SWITCHED).filter(_ == 0).
-      map(x => timestamp.minus(uptime - x)).getOrElse(timestamp)
-    val tcpflags = (buf.getInteger(template, TCP_FLAGS) getOrElse -1L).toInt
+    val start = buf.getUnsignedInteger(template, FIRST_SWITCHED).filter(_ == 0).
+      map(x => timestamp.minus(uptime - x))
+    val stop = buf.getUnsignedInteger(template, LAST_SWITCHED).filter(_ == 0).
+      map(x => timestamp.minus(uptime - x))
+    val tcpflags = (buf.getUnsignedInteger(template, TCP_FLAGS) getOrElse -1L).toInt
 
     val srcAddress = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
     val dstAddress = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
     val nextHop = Option(buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)).
       filter(_.getHostAddress != "0.0.0.0") // FIXME filter v6
 
-    val pkts = buf.getInteger(template, InPKTS, OutPKTS).get
-    val bytes = buf.getInteger(template, InBYTES, OutBYTES).get
+    val pkts = buf.getUnsignedInteger(template, InPKTS, OutPKTS).get
+    val bytes = buf.getUnsignedInteger(template, InBYTES, OutBYTES).get
     val extraFields: Map[String, Long] = if (!parseExtraFields) Map() else template.getExtraFields(buf)
-    NetFlowV9DataRecord(sender, buf.readableBytes(), template.id, uptime, timestamp, srcPort, dstPort, srcAS, dstAS, pkts, bytes, proto,
+    NetFlowV9DataRecord(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
+      srcPort, dstPort, srcAS, dstAS, pkts, bytes, proto,
       tos, tcpflags, start, stop, srcAddress, dstAddress, nextHop, extraFields, fpId)
   }
 
@@ -259,25 +264,26 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
   object proto extends IntColumn(this) with Index[Int]
   object tos extends IntColumn(this) with Index[Int]
   object tcpflags extends IntColumn(this)
-  object start extends DateTimeColumn(this) with Index[DateTime]
-  object stop extends DateTimeColumn(this) with Index[DateTime]
+  object start extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
+  object stop extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
   object srcAddress extends InetAddressColumn(this) with Index[InetAddress]
   object dstAddress extends InetAddressColumn(this) with Index[InetAddress]
   object nextHop extends OptionalInetAddressColumn(this) with Index[Option[InetAddress]]
   object extra extends MapColumn[NetFlowV9Data, NetFlowV9DataRecord, String, Long](this)
 
-  def fromRow(row: Row): NetFlowV9DataRecord = NetFlowV9DataRecord(new InetSocketAddress(sender(row), senderPort(row)),
-    length(row), template(row), uptime(row), timestamp(row), srcPort(row), dstPort(row), srcAS(row), dstAS(row), pkts(row), bytes(row), proto(row), tos(row),
-    tcpflags(row), start(row), stop(row), srcAddress(row), dstAddress(row), nextHop(row), extra(row), packet(row))
+  def fromRow(row: Row): NetFlowV9DataRecord = NetFlowV9DataRecord(id(row), new InetSocketAddress(sender(row),
+    senderPort(row)), length(row), template(row), uptime(row), timestamp(row), srcPort(row), dstPort(row),
+    srcAS(row), dstAS(row), pkts(row), bytes(row), proto(row), tos(row), tcpflags(row), start(row), stop(row),
+    srcAddress(row), dstAddress(row), nextHop(row), extra(row), packet(row))
 
 }
 
 object NetFlowV9Data extends NetFlowV9Data
 
-case class NetFlowV9DataRecord(sender: InetSocketAddress, length: Int, template: Int, uptime: Long, timestamp: DateTime,
-                               srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
+case class NetFlowV9DataRecord(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
+                               timestamp: DateTime, srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
                                pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                               start: DateTime, stop: DateTime,
+                               start: Option[DateTime], stop: Option[DateTime],
                                srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                                extra: Map[String, Long], packet: UUID) extends NetFlowData[NetFlowV9DataRecord] {
   def version = "NetFlowV9Data " + template
@@ -297,11 +303,13 @@ sealed class NetFlowV9Option extends CassandraTable[NetFlowV9Option, NetFlowV9Op
    * @param template NetFlow Template for this Flow
    * @param timestamp DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9TemplateRecord, uptime: Long, timestamp: DateTime) = Try[NetFlowV9OptionRecord] {
-    NetFlowV9OptionRecord(sender, buf.readableBytes(), template.id, uptime, timestamp, template.getExtraFields(buf), fpId)
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9TemplateRecord,
+            uptime: Long, timestamp: DateTime) = Try[NetFlowV9OptionRecord] {
+    NetFlowV9OptionRecord(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
+      template.getExtraFields(buf), fpId)
   }
 
-  object id extends UUIDColumn(this) with PartitionKey[UUID]
+  object id extends TimeUUIDColumn(this) with PartitionKey[UUID]
   object packet extends TimeUUIDColumn(this) with Index[UUID]
   object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
   object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
@@ -311,15 +319,17 @@ sealed class NetFlowV9Option extends CassandraTable[NetFlowV9Option, NetFlowV9Op
   object length extends IntColumn(this)
   object extra extends MapColumn[NetFlowV9Option, NetFlowV9OptionRecord, String, Long](this)
 
-  def fromRow(row: Row): NetFlowV9OptionRecord = NetFlowV9OptionRecord(new InetSocketAddress(sender(row), senderPort(row)),
+  def fromRow(row: Row): NetFlowV9OptionRecord = NetFlowV9OptionRecord(id(row),
+    new InetSocketAddress(sender(row), senderPort(row)),
     length(row), template(row), uptime(row), timestamp(row), extra(row), packet(row))
 
 }
 
 object NetFlowV9Option extends NetFlowV9Option
 
-case class NetFlowV9OptionRecord(sender: InetSocketAddress, length: Int, template: Int, uptime: Long, timestamp: DateTime,
-                                 extra: Map[String, Long], packet: UUID) extends Flow[NetFlowV9OptionRecord] {
+case class NetFlowV9OptionRecord(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
+                                 timestamp: DateTime, extra: Map[String, Long], packet: UUID)
+  extends Flow[NetFlowV9OptionRecord] {
   def version = "NetFlowV9Option " + template
   override lazy val json = Serialization.write(extra)
 

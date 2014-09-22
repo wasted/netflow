@@ -43,15 +43,15 @@ object NetFlowV1Packet {
    * @param buf Netty ByteBuf containing the UDP Packet
    */
   def apply(sender: InetSocketAddress, buf: ByteBuf): Try[NetFlowV1Packet] = Try[NetFlowV1Packet] {
-    val version = buf.getInteger(0, 2).toInt
+    val version = buf.getUnsignedInteger(0, 2).toInt
     if (version != 1) return Failure(new InvalidFlowVersionException(version))
 
-    val count = buf.getInteger(2, 2).toInt
+    val count = buf.getUnsignedInteger(2, 2).toInt
     if (count <= 0 || buf.readableBytes < headerSize + count * flowSize)
       return Failure(new CorruptFlowPacketException)
 
-    val uptime = buf.getInteger(4, 4) / 1000
-    val timestamp = new DateTime(buf.getInteger(8, 4) * 1000)
+    val uptime = buf.getUnsignedInteger(4, 4)
+    val timestamp = new DateTime(buf.getUnsignedInteger(8, 4) * 1000)
     val id = UUIDs.startOf(timestamp.getMillis)
 
     val flows: List[NetFlowV1Record] = (0 to count - 1).toList.flatMap { i =>
@@ -61,37 +61,39 @@ object NetFlowV1Packet {
   }
 }
 
-case class NetFlowV1Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV1Record]) extends FlowPacket {
+case class NetFlowV1Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+                           flows: List[NetFlowV1Record]) extends FlowPacket {
   def version = "NetFlowV1 Packet"
   def count = flows.length
 
-  def persist = flows.foldLeft(new BatchStatement()) { (b, row) =>
-    val statement = NetFlowV1.insert
-      .value(_.id, UUIDs.timeBased())
-      .value(_.packet, id)
-      .value(_.sender, row.sender.getAddress)
-      .value(_.timestamp, row.timestamp)
-      .value(_.uptime, row.uptime)
-      .value(_.senderPort, row.senderPort)
-      .value(_.length, row.length)
-      .value(_.srcPort, row.srcPort)
-      .value(_.dstPort, row.dstPort)
-      .value(_.srcAS, row.srcAS)
-      .value(_.dstAS, row.dstAS)
-      .value(_.pkts, row.pkts)
-      .value(_.bytes, row.bytes)
-      .value(_.proto, row.proto)
-      .value(_.tos, row.tos)
-      .value(_.tcpflags, row.tcpflags)
-      .value(_.start, row.start)
-      .value(_.stop, row.stop)
-      .value(_.srcAddress, row.srcAddress)
-      .value(_.dstAddress, row.dstAddress)
-      .value(_.nextHop, row.nextHop)
-      .value(_.snmpInput, row.snmpInput)
-      .value(_.snmpOutput, row.snmpOutput)
-    b.add(statement)
-  }.future()
+  def persist() = flows.foldLeft((0, new BatchStatement())) {
+    case ((count, b), row) =>
+      val statement = NetFlowV1.insert
+        .value(_.id, UUIDs.startOf(timestamp.getMillis + count))
+        .value(_.packet, id)
+        .value(_.sender, row.sender.getAddress)
+        .value(_.timestamp, row.timestamp)
+        .value(_.uptime, row.uptime)
+        .value(_.senderPort, row.senderPort)
+        .value(_.length, row.length)
+        .value(_.srcPort, row.srcPort)
+        .value(_.dstPort, row.dstPort)
+        .value(_.srcAS, row.srcAS)
+        .value(_.dstAS, row.dstAS)
+        .value(_.pkts, row.pkts)
+        .value(_.bytes, row.bytes)
+        .value(_.proto, row.proto)
+        .value(_.tos, row.tos)
+        .value(_.tcpflags, row.tcpflags)
+        .value(_.start, row.start)
+        .value(_.stop, row.stop)
+        .value(_.srcAddress, row.srcAddress)
+        .value(_.dstAddress, row.dstAddress)
+        .value(_.nextHop, row.nextHop)
+        .value(_.snmpInput, row.snmpInput)
+        .value(_.snmpOutput, row.snmpOutput)
+      (count + 1, b.add(statement))
+  }._2.future()
 }
 
 /**
@@ -143,28 +145,29 @@ sealed class NetFlowV1 extends CassandraTable[NetFlowV1, NetFlowV1Record] {
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf Slice containing the UDP Packet
    * @param fpId FlowPacket-UUID this Flow arrived on
-   * @param uptime Seconds since UNIX Epoch when the exporting device/sender booted
-   * @param timestamp DateTime when this flow was exported
+   * @param uptime Millis since UNIX Epoch when the exporting device/sender booted
+   * @param ts DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime): Option[NetFlowV1Record] = Try[NetFlowV1Record] {
-    NetFlowV1Record(sender, buf.readableBytes(), uptime, timestamp,
-      buf.getInteger(32, 2).toInt, // srcPort
-      buf.getInteger(34, 2).toInt, // dstPort
-      None, None, // srcAS and dstAS
-      buf.getInteger(16, 4), // pkts
-      buf.getInteger(20, 4), // bytes
-      buf.getUnsignedByte(38).toInt, // proto
-      buf.getUnsignedByte(39).toInt, // tos
-      buf.getUnsignedByte(40).toInt, // tcpflags
-      timestamp.minus(uptime - buf.getInteger(24, 4)), // start
-      timestamp.minus(uptime - buf.getInteger(28, 4)), // stop
-      buf.getInetAddress(0, 4), // srcAddress
-      buf.getInetAddress(4, 4), // dstAddress
-      Option(buf.getInetAddress(8, 4)).filter(_.getHostAddress != "0.0.0.0"), // nextHop
-      buf.getInteger(12, 2).toInt, // snmpInput
-      buf.getInteger(14, 2).toInt, // snmpOutput
-      fpId)
-  }.toOption
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, ts: DateTime): Option[NetFlowV1Record] =
+    Try[NetFlowV1Record] {
+      NetFlowV1Record(UUIDs.timeBased(), sender, buf.readableBytes(), uptime, ts,
+        buf.getUnsignedInteger(32, 2).toInt, // srcPort
+        buf.getUnsignedInteger(34, 2).toInt, // dstPort
+        None, None, // srcAS and dstAS
+        buf.getUnsignedInteger(16, 4), // pkts
+        buf.getUnsignedInteger(20, 4), // bytes
+        buf.getUnsignedByte(38).toInt, // proto
+        buf.getUnsignedByte(39).toInt, // tos
+        buf.getUnsignedByte(40).toInt, // tcpflags
+        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => ts.minus(uptime - x)), // start
+        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => ts.minus(uptime - x)), // stop
+        buf.getInetAddress(0, 4), // srcAddress
+        buf.getInetAddress(4, 4), // dstAddress
+        Option(buf.getInetAddress(8, 4)).filter(_.getHostAddress != "0.0.0.0"), // nextHop
+        buf.getUnsignedInteger(12, 2).toInt, // snmpInput
+        buf.getUnsignedInteger(14, 2).toInt, // snmpOutput
+        fpId)
+    }.toOption
 
   object id extends TimeUUIDColumn(this) with PartitionKey[UUID]
   object packet extends TimeUUIDColumn(this) with Index[UUID]
@@ -182,15 +185,15 @@ sealed class NetFlowV1 extends CassandraTable[NetFlowV1, NetFlowV1Record] {
   object proto extends IntColumn(this) with Index[Int]
   object tos extends IntColumn(this) with Index[Int]
   object tcpflags extends IntColumn(this)
-  object start extends DateTimeColumn(this) with Index[DateTime]
-  object stop extends DateTimeColumn(this) with Index[DateTime]
+  object start extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
+  object stop extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
   object srcAddress extends InetAddressColumn(this) with Index[InetAddress]
   object dstAddress extends InetAddressColumn(this) with Index[InetAddress]
   object nextHop extends OptionalInetAddressColumn(this) with Index[Option[InetAddress]]
   object snmpInput extends IntColumn(this)
   object snmpOutput extends IntColumn(this)
 
-  def fromRow(row: Row): NetFlowV1Record = NetFlowV1Record(new InetSocketAddress(sender(row), senderPort(row)),
+  def fromRow(row: Row): NetFlowV1Record = NetFlowV1Record(id(row), new InetSocketAddress(sender(row), senderPort(row)),
     length(row), uptime(row), timestamp(row), srcPort(row), dstPort(row), srcAS(row), dstAS(row), pkts(row),
     bytes(row), proto(row), tos(row), tcpflags(row), start(row), stop(row), srcAddress(row), dstAddress(row),
     nextHop(row), snmpInput(row), snmpOutput(row), packet(row))
@@ -198,10 +201,10 @@ sealed class NetFlowV1 extends CassandraTable[NetFlowV1, NetFlowV1Record] {
 
 object NetFlowV1 extends NetFlowV1
 
-case class NetFlowV1Record(sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+case class NetFlowV1Record(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
                            srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
                            pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                           start: DateTime, stop: DateTime,
+                           start: Option[DateTime], stop: Option[DateTime],
                            srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                            snmpInput: Int, snmpOutput: Int, packet: UUID) extends NetFlowData[NetFlowV1Record] {
   def version = "NetFlowV1"

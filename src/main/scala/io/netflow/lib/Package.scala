@@ -37,15 +37,15 @@ package object lib {
       case Failure(e) => defaultAddr
     }
 
-    def getInteger(template: flows.cflow.Template, field: TemplateFields.Value): Option[Long] = {
+    def getUnsignedInteger(template: flows.cflow.Template, field: TemplateFields.Value): Option[Long] = {
       if (!template.hasField(field)) return None
-      Some(getInteger(template.typeOffset(field), template.typeLen(field)))
+      Some(getUnsignedInteger(template.typeOffset(field), template.typeLen(field)))
     }
 
-    def getInteger(template: flows.cflow.Template, field1: TemplateFields.Value, field2: TemplateFields.Value): Option[Long] =
-      getInteger(template, field1) orElse getInteger(template, field2)
+    def getUnsignedInteger(template: flows.cflow.Template, field1: TemplateFields.Value, field2: TemplateFields.Value): Option[Long] =
+      getUnsignedInteger(template, field1) orElse getUnsignedInteger(template, field2)
 
-    def getInteger(offset: Int, length: Int): Long = length match {
+    def getUnsignedInteger(offset: Int, length: Int): Long = length match {
       case 1 => buf.getUnsignedByte(offset).toLong
       case 2 => buf.getUnsignedShort(offset).toLong
       case 3 => buf.getUnsignedMedium(offset).toLong
