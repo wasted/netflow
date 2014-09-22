@@ -117,10 +117,10 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
     val pfx = prefix.prefix.getHostAddress
     val keys = List[String](
       year,
-      year + "/" + month,
-      year + "/" + month + "/" + day,
-      year + "/" + month + "/" + day + "-" + hour,
-      year + "/" + month + "/" + day + "-" + hour + ":" + minute)
+      year + "-" + month,
+      year + "-" + month + "-" + day,
+      year + "-" + month + "-" + day + " " + hour,
+      year + "-" + month + "-" + day + " " + hour + ":" + minute)
 
     //get/10.4.20.5/10.4.20.0/24/2001:4cea::/32  { years: [2014,2013,2012,2011], month: [201401, 201402, 201403] }
 
