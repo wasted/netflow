@@ -13,7 +13,7 @@ case class NetFlowSeriesRecord(sender: InetAddress, prefix: InetPrefix, date: St
 sealed class NetFlowSeries extends CassandraTable[NetFlowSeries, NetFlowSeriesRecord] {
 
   object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
-  object prefix extends StringColumn(this) with PartitionKey[String]
+  object prefix extends StringColumn(this) with PrimaryKey[String]
   object date extends StringColumn(this) with PrimaryKey[String]
   object name extends StringColumn(this) with PrimaryKey[String]
   object direction extends StringColumn(this) with PrimaryKey[String]
