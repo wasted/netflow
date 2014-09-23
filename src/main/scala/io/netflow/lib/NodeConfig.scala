@@ -128,13 +128,13 @@ private[netflow] object NodeConfig extends Logger {
 
     val netflow = NetFlowConfig(
       listen = Config.getInetAddrList("netflow.listen", List("0.0.0.0:2055")),
-      persist = Config.getBool("netflow.persist", true),
+      persist = Config.getBool("netflow.persist", false),
       calculateSamples = Config.getBool("netflow.calculateSamples", true),
       extraFields = Config.getBool("netflow.extraFields", true))
 
     val sflow = SFlowConfig(
       listen = Config.getInetAddrList("sflow.listen", List("0.0.0.0:6343")),
-      persist = Config.getBool("sflow.persist", true))
+      persist = Config.getBool("sflow.persist", false))
 
     val ssl = SslConfig(
       certPath = Config.getString("http.ssl.p12"),
