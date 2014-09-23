@@ -144,7 +144,7 @@ private[netflow] object NodeConfig extends Logger {
       listen = Config.getInetAddrList("http.listen", List("0.0.0.0:8080")),
       sendFile = Config.getBool("http.sendFile", true),
       sendBuffer = Config.getBool("http.sendBuffer", true),
-      gzip = Config.getBool("http.gzip", false),
+      gzip = Config.getBool("http.gzip", true),
       maxContentLength = Config.getBytes("http.maxContentLength", 10 * 1024 * 1024),
       maxInitialLineLength = Config.getBytes("http.maxInitialLineLength", 8 * 1024),
       maxChunkSize = Config.getBytes("http.maxChunkSize", 512 * 1024),
