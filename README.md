@@ -118,7 +118,7 @@ It's easiest to use like this:
 export NF_AUTH_KEY='<authKey>'
 export NF_SIGN_KEY='<signKey>'
 export NF_SIGNED_KEY=$( echo -n "${NF_AUTH_KEY}" | openssl dgst -sha256 -hmac "${NF_SIGN_KEY}" )
-``
+```
 
 This will setup the NetFlow sender 172.16.1.1 which is monitoring 172.16.1.0/24 and 10.0.0.0/24
     
