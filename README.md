@@ -15,7 +15,7 @@ It is actively being developed by [wasted.io](https://twitter.com/wastedio), so 
 - NetFlow v5
 - NetFlow v6
 - NetFlow v7
-- NetFlow v9 ([RFC3954](http://tools.ietf.org/html/rfc3954)) - works
+- NetFlow v9 ([RFC3954](http://tools.ietf.org/html/rfc3954)) - options not handled yet
 
 ## To be done
 
