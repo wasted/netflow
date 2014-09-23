@@ -199,6 +199,35 @@ curl -X POST -d '{
   -v http://127.0.0.1:8080/stats/172.16.1.1
 ```
 
+Querying for more detailed statistics (about dst AS 34868 and src AS 34868)
+
+Tracked fields:
+- all
+- proto (6 for TCP, 17 for UDP, see /etc/protocols)
+- srcip, srcport, srcas
+- dstip, dstport, dstas
+
+```shell
+curl -X POST -d '{
+  "2001:db8::/32":{ 
+    "years":["2013", "2014"], 
+    "months":["2013-01", "2013-02"], 
+    "days":["2014-02-02"], 
+    "hours":["2014-02-02 05"],
+    "minutes":[
+      {"2014-02-02 05:00": ["all", "dstas:34868", "srcas:34868"]},
+      {"2014-02-02 05:01": ["all", "dstas:34868", "srcas:34868"]},
+      {"2014-02-02 05:02": ["all", "dstas:34868", "srcas:34868"]},
+      {"2014-02-02 05:03": ["all", "dstas:34868", "srcas:34868"]},
+      {"2014-02-02 05:04": ["all", "dstas:34868", "srcas:34868"]}
+    ]
+  }}' \
+  -H "X-Io-Auth: ${NF_AUTH_KEY}" \
+  -H "X-Io-Sign: ${NF_SIGNED_KEY}" \
+  -v http://127.0.0.1:8080/stats/172.16.1.1
+```
+
+
 ## FAQ - Frequently Asked Questions
 
 #### Q1: I just started the collector with loglevel Debug, it shows 0/24 flows passed, why?

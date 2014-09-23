@@ -6,7 +6,7 @@ import com.websudos.phantom.Implicits._
 import com.websudos.phantom.column.{ LowPriorityImplicits => _ }
 import io.netflow.flows.FlowSender
 import io.netflow.lib._
-import io.netflow.timeseries.NetFlowSeries
+import io.netflow.timeseries._
 import io.netty.channel._
 import io.netty.handler.codec.http.HttpHeaders._
 import io.netty.handler.codec.http.HttpMethod._
@@ -129,19 +129,26 @@ private[netty] object AdminAPIHandler extends SimpleChannelInboundHandler[FullHt
                   case JField(prefix, fields: JObject) =>
                     val pfxResult = fields.obj.map {
                       case JField(name, keysJ: JArray) =>
-                        val keys = keysJ.extract[List[String]]
-                        val seriesFutures = keys.map { date =>
-                          NetFlowSeries.select
-                            .where(_.sender eqs sender)
-                            .and(_.prefix eqs prefix)
-                            .and(_.date eqs date)
-                            .and(_.name eqs "all").fetch()
-                            .map(f => date -> Extraction.decompose(f).transform {
-                              case JField("name", _) => JNothing
-                              case JField("prefix", _) => JNothing
-                              case JField("sender", _) => JNothing
-                              case JField("date", _) => JNothing
-                            })
+                        val keys: Map[String, List[String]] = keysJ.arr.flatMap {
+                          case JString(date) => Some(date -> List("all"))
+                          case JObject(JField(date, profiles: JArray) :: Nil) => profiles.extractOpt[List[String]].map(date -> _)
+                          case x => None
+                        }.toMap
+                        val seriesFutures = keys.map {
+                          case (date, profiles) =>
+                            Future.sequence(profiles.map { profile =>
+                              NetFlowSeries.select
+                                .where(_.sender eqs sender)
+                                .and(_.prefix eqs prefix)
+                                .and(_.date eqs date)
+                                .and(_.name eqs profile).fetch()
+                            }).map { rows =>
+                              date -> Extraction.decompose(rows.flatten[NetFlowSeriesRecord]).transform {
+                                case JField("prefix", _) => JNothing
+                                case JField("sender", _) => JNothing
+                                case JField("date", _) => JNothing
+                              }
+                            }
                         }
                         val series = Future.sequence(seriesFutures)
                         val awaitedResult = Await.result(series, 1 minute).toMap
