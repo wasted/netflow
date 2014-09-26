@@ -101,9 +101,9 @@ private[netflow] object NodeConfig extends Logger {
         "WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}"))
 
     val cpus = Runtime.getRuntime.availableProcessors() match {
-      case 1 => 1
       case x if x > 8 => x - 2
       case x if x > 4 => x - 1
+      case _ => 1
     }
 
     val adminAuthKey = Config.getString("admin.authKey").flatMap(ak => Tryo(UUID.fromString(ak))) match {
