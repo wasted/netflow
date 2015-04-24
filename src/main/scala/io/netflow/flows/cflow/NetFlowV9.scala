@@ -1,19 +1,20 @@
-package io.netflow.flows.cflow
+package io.netflow
+package flows.cflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
-import com.datastax.driver.core.Row
 import com.datastax.driver.core.utils.UUIDs
-import com.websudos.phantom.Implicits._
+import com.twitter.util.Future
 import io.netflow.actors.SenderWorker
+import io.netflow.flows.cflow.TemplateFields._
 import io.netflow.lib._
 import io.netty.buffer._
 import io.wasted.util._
 import net.liftweb.json._
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 /**
  * NetFlow Version 9 Packet - FlowSet DataSet
@@ -38,6 +39,7 @@ import scala.util.{ Failure, Success, Try }
  */
 object NetFlowV9Packet extends Logger {
   private val headerSize = 20
+  private def parseExtraFields = NodeConfig.values.netflow.extraFields
 
   /**
    * Parse a v9 Flow Packet
@@ -84,7 +86,7 @@ object NetFlowV9Packet extends Logger {
             val templateSize = fieldCount * 4 + 4
             if (templateOffset + templateSize < length) {
               val buffer = buf.slice(templateOffset, templateSize)
-              NetFlowV9TemplateMeta(sender, buffer, id, flowsetId, timestamp) match {
+              NetFlowV9Template(sender, buffer, id, flowsetId, timestamp) match {
                 case Success(tmpl) =>
                   actor.setTemplate(tmpl)
                   flows += tmpl
@@ -104,7 +106,7 @@ object NetFlowV9Packet extends Logger {
             val templateSize = scopeLen + optionLen + 6
             if (templateOffset + templateSize < length) {
               val buffer = buf.slice(templateOffset, templateSize)
-              NetFlowV9TemplateMeta(sender, buffer, id, flowsetId, timestamp) match {
+              NetFlowV9Template(sender, buffer, id, flowsetId, timestamp) match {
                 case Success(tmpl) =>
                   actor.setTemplate(tmpl)
                   flows += tmpl
@@ -117,16 +119,16 @@ object NetFlowV9Packet extends Logger {
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
           actor.templates.get(flowsetId).
-            filter(_.isInstanceOf[NetFlowV9TemplateRecord]).
-            map(_.asInstanceOf[NetFlowV9TemplateRecord]).
-            map { tmpl =>
+            filter(_.isInstanceOf[NetFlowV9Template]).
+            map(_.asInstanceOf[NetFlowV9Template]).
+            foreach { tmpl =>
               val option = tmpl.flowsetId == 1
               var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
               while (recordOffset - packetOffset + tmpl.length <= flowsetLength) {
                 val buffer = buf.slice(recordOffset, tmpl.length)
                 val flow =
-                  if (option) NetFlowV9Option(sender, buffer, id, tmpl, uptime, timestamp)
-                  else NetFlowV9Data(sender, buffer, id, tmpl, uptime, timestamp)
+                  if (option) optionRecord(sender, buffer, id, tmpl, uptime, timestamp)
+                  else dataRecord(sender, buffer, id, tmpl, uptime, timestamp)
 
                 flow match {
                   case Success(flow) => flows += flow
@@ -143,69 +145,6 @@ object NetFlowV9Packet extends Logger {
 
     NetFlowV9Packet(id, sender, length, uptime, timestamp, flows.toList, flowSequence, sourceId)
   }
-}
-
-case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long,
-                           timestamp: DateTime, flows: List[Flow[_]],
-                           flowSequence: Long, sourceId: Long) extends FlowPacket {
-  def version = "NetFlowV9 Packet"
-  def count = flows.length
-
-  def persist() = flows.foldLeft((0, new BatchStatement())) {
-    case ((count, b), flowRow) =>
-      val statement = flowRow match {
-        case row: NetFlowV9DataRecord =>
-          NetFlowV9Data.insert
-            .value(_.id, UUIDs.startOf(timestamp.getMillis + count))
-            .value(_.packet, id)
-            .value(_.sender, row.sender.getAddress)
-            .value(_.timestamp, row.timestamp)
-            .value(_.template, row.template)
-            .value(_.uptime, row.uptime)
-            .value(_.senderPort, row.senderPort)
-            .value(_.length, row.length)
-            .value(_.srcPort, row.srcPort)
-            .value(_.dstPort, row.dstPort)
-            .value(_.srcAS, row.srcAS)
-            .value(_.dstAS, row.dstAS)
-            .value(_.pkts, row.pkts)
-            .value(_.bytes, row.bytes)
-            .value(_.proto, row.proto)
-            .value(_.tos, row.tos)
-            .value(_.tcpflags, row.tcpflags)
-            .value(_.start, row.start)
-            .value(_.stop, row.stop)
-            .value(_.srcAddress, row.srcAddress)
-            .value(_.dstAddress, row.dstAddress)
-            .value(_.nextHop, row.nextHop)
-            .value(_.extra, row.extra)
-        case row: NetFlowV9OptionRecord =>
-          NetFlowV9Option.insert
-            .value(_.id, UUIDs.startOf(timestamp.getMillis + count))
-            .value(_.packet, id)
-            .value(_.sender, row.sender.getAddress)
-            .value(_.timestamp, row.timestamp)
-            .value(_.template, row.template)
-            .value(_.uptime, row.uptime)
-            .value(_.senderPort, row.senderPort)
-            .value(_.length, row.length)
-            .value(_.extra, row.extra)
-        case row: NetFlowV9TemplateRecord =>
-          NetFlowV9Template.update.where(_.sender eqs row.sender.getAddress).
-            and(_.id eqs row.number).
-            modify(_.senderPort setTo row.senderPort).
-            and(_.packet setTo row.packet).
-            and(_.last setTo DateTime.now).
-            and(_.map setTo row.map)
-        //case nf10: cflow.NetFlowV10TemplateRecord => FIXME Netflow 10
-      }
-      (count + 1, b.add(statement))
-  }._2.future()
-}
-
-sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRecord] {
-  import io.netflow.flows.cflow.TemplateFields._
-  def parseExtraFields = NodeConfig.values.netflow.extraFields
 
   /**
    * Parse a Version 9 Flow
@@ -216,8 +155,8 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
    * @param template NetFlow Template for this Flow
    * @param timestamp DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9TemplateRecord,
-            uptime: Long, timestamp: DateTime) = Try[NetFlowV9DataRecord] {
+  def dataRecord(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9Template,
+                 uptime: Long, timestamp: DateTime) = Try[NetFlowV9Data] {
     val srcPort = buf.getUnsignedInteger(template, L4_SRC_PORT).get.toInt
     val dstPort = buf.getUnsignedInteger(template, L4_DST_PORT).get.toInt
 
@@ -241,57 +180,10 @@ sealed class NetFlowV9Data extends CassandraTable[NetFlowV9Data, NetFlowV9DataRe
     val pkts = buf.getUnsignedInteger(template, InPKTS, OutPKTS).get
     val bytes = buf.getUnsignedInteger(template, InBYTES, OutBYTES).get
     val extraFields: Map[String, Long] = if (!parseExtraFields) Map() else template.getExtraFields(buf)
-    NetFlowV9DataRecord(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
+    NetFlowV9Data(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
       srcPort, dstPort, srcAS, dstAS, pkts, bytes, proto,
       tos, tcpflags, start, stop, srcAddress, dstAddress, nextHop, extraFields, fpId)
   }
-
-  object id extends UUIDColumn(this) with PartitionKey[UUID]
-  object packet extends TimeUUIDColumn(this) with Index[UUID]
-  object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
-  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
-  object uptime extends LongColumn(this)
-  object template extends IntColumn(this) with PrimaryKey[Int]
-  object senderPort extends IntColumn(this) with Index[Int]
-  object length extends IntColumn(this)
-  object srcPort extends IntColumn(this) with Index[Int]
-  object dstPort extends IntColumn(this) with Index[Int]
-  object srcAS extends OptionalIntColumn(this) with Index[Option[Int]]
-  object dstAS extends OptionalIntColumn(this) with Index[Option[Int]]
-  object pkts extends LongColumn(this)
-  object bytes extends LongColumn(this)
-  object proto extends IntColumn(this) with Index[Int]
-  object tos extends IntColumn(this) with Index[Int]
-  object tcpflags extends IntColumn(this)
-  object start extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
-  object stop extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
-  object srcAddress extends InetAddressColumn(this) with Index[InetAddress]
-  object dstAddress extends InetAddressColumn(this) with Index[InetAddress]
-  object nextHop extends OptionalInetAddressColumn(this) with Index[Option[InetAddress]]
-  object extra extends MapColumn[NetFlowV9Data, NetFlowV9DataRecord, String, Long](this)
-
-  def fromRow(row: Row): NetFlowV9DataRecord = NetFlowV9DataRecord(id(row), new InetSocketAddress(sender(row),
-    senderPort(row)), length(row), template(row), uptime(row), timestamp(row), srcPort(row), dstPort(row),
-    srcAS(row), dstAS(row), pkts(row), bytes(row), proto(row), tos(row), tcpflags(row), start(row), stop(row),
-    srcAddress(row), dstAddress(row), nextHop(row), extra(row), packet(row))
-
-}
-
-object NetFlowV9Data extends NetFlowV9Data
-
-case class NetFlowV9DataRecord(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
-                               timestamp: DateTime, srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                               pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                               start: Option[DateTime], stop: Option[DateTime],
-                               srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
-                               extra: Map[String, Long], packet: UUID) extends NetFlowData[NetFlowV9DataRecord] {
-  def version = "NetFlowV9Data " + template
-
-  override lazy val jsonExtra = Extraction.decompose(extra).asInstanceOf[JObject]
-  override lazy val stringExtra = "- Template %s".format(template)
-}
-
-sealed class NetFlowV9Option extends CassandraTable[NetFlowV9Option, NetFlowV9OptionRecord] {
 
   /**
    * Parse a Version 9 Option Flow
@@ -302,33 +194,44 @@ sealed class NetFlowV9Option extends CassandraTable[NetFlowV9Option, NetFlowV9Op
    * @param template NetFlow Template for this Flow
    * @param timestamp DateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9TemplateRecord,
-            uptime: Long, timestamp: DateTime) = Try[NetFlowV9OptionRecord] {
-    NetFlowV9OptionRecord(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
+  def optionRecord(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9Template,
+                   uptime: Long, timestamp: DateTime) = Try[NetFlowV9Option] {
+    NetFlowV9Option(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
       template.getExtraFields(buf), fpId)
   }
 
-  object id extends TimeUUIDColumn(this) with PartitionKey[UUID]
-  object packet extends TimeUUIDColumn(this) with Index[UUID]
-  object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
-  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
-  object uptime extends LongColumn(this)
-  object template extends IntColumn(this) with PrimaryKey[Int]
-  object senderPort extends IntColumn(this)
-  object length extends IntColumn(this)
-  object extra extends MapColumn[NetFlowV9Option, NetFlowV9OptionRecord, String, Long](this)
+  private def doLayer[T](f: FlowPacketMeta[NetFlowV9Packet] => Future[T]): Future[T] = NodeConfig.values.storage match {
+    case Some(StorageLayer.Cassandra) => f(storage.cassandra.NetFlowV9Packet)
+    case Some(StorageLayer.Redis) => f(storage.redis.NetFlowV9Packet)
+    case _ => Future.exception(NoBackendDefined)
+  }
 
-  def fromRow(row: Row): NetFlowV9OptionRecord = NetFlowV9OptionRecord(id(row),
-    new InetSocketAddress(sender(row), senderPort(row)),
-    length(row), template(row), uptime(row), timestamp(row), extra(row), packet(row))
-
+  def persist(fp: NetFlowV9Packet): Unit = doLayer(l => Future.value(l.persist(fp)))
 }
 
-object NetFlowV9Option extends NetFlowV9Option
+case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long,
+                           timestamp: DateTime, flows: List[Flow[_]],
+                           flowSequence: Long, sourceId: Long) extends FlowPacket {
+  def version = "NetFlowV9 Packet"
+  def count = flows.length
+  def persist() = NetFlowV9Packet.persist(this)
+}
 
-case class NetFlowV9OptionRecord(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
-                                 timestamp: DateTime, extra: Map[String, Long], packet: UUID)
-  extends Flow[NetFlowV9OptionRecord] {
+case class NetFlowV9Data(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
+                         timestamp: DateTime, srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
+                         pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
+                         start: Option[DateTime], stop: Option[DateTime],
+                         srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
+                         extra: Map[String, Long], packet: UUID) extends NetFlowData[NetFlowV9Data] {
+  def version = "NetFlowV9Data " + template
+
+  override lazy val jsonExtra = Extraction.decompose(extra).asInstanceOf[JObject]
+  override lazy val stringExtra = "- Template " + template
+}
+
+case class NetFlowV9Option(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
+                           timestamp: DateTime, extra: Map[String, Long], packet: UUID)
+  extends Flow[NetFlowV9Option] {
   def version = "NetFlowV9Option " + template
   override lazy val json = Serialization.write(extra)
 

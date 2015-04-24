@@ -1,11 +1,9 @@
 package io.netflow.lib
 
-import java.io.File
 import java.net.InetSocketAddress
 import java.util.UUID
 
-import io.wasted.util.ssl.{ KeyStoreType, Ssl }
-import io.wasted.util.{ Tryo, Config, Logger }
+import io.wasted.util.{Config, Logger, Tryo}
 
 import scala.concurrent.duration._
 
@@ -14,27 +12,16 @@ private[netflow] object NodeConfig extends Logger {
   case class ServerConfig(
     cores: Int,
     statuslog: Duration,
+    storage: Option[StorageLayer.Value],
     debugStackTraces: Boolean,
     admin: AdminConfig,
     netflow: NetFlowConfig,
     sflow: SFlowConfig,
     cassandra: CassandraConfig,
+    redis: RedisConfig,
+    elastic: ElasticSearchConfig,
     http: HttpConfig,
-    tcp: TcpConfig,
-    ssl: SslConfig) {
-    def sslEngine = for {
-      certPath <- ssl.certPath
-      if new File(certPath).exists
-      certPass <- ssl.certPass
-    } yield {
-      val sslE = Ssl.server(certPath, certPass, KeyStoreType.P12)
-      val engine = sslE.self
-      engine.setNeedClientAuth(false)
-      engine.setUseClientMode(false)
-      engine.setEnableSessionCreation(true)
-      sslE
-    }
-  }
+    tcp: TcpConfig)
 
   case class AdminConfig(
     authKey: UUID,
@@ -49,6 +36,9 @@ private[netflow] object NodeConfig extends Logger {
     maxInitialLineLength: Long,
     maxChunkSize: Long,
     maxHeaderSize: Long)
+
+  case class RedisConfig(hosts: Seq[String])
+  case class ElasticSearchConfig(hosts: Seq[String])
 
   case class CassandraConfig(
     hosts: Seq[String],
@@ -70,10 +60,6 @@ private[netflow] object NodeConfig extends Logger {
     reuseAddr: Boolean,
     soLinger: Int)
 
-  case class SslConfig(
-    certPath: Option[String],
-    certPass: Option[String])
-
   case class SFlowConfig(
     listen: Seq[InetSocketAddress],
     persist: Boolean)
@@ -87,25 +73,6 @@ private[netflow] object NodeConfig extends Logger {
   private var config: ServerConfig = load()
 
   private def load(): ServerConfig = {
-    val cassandra = CassandraConfig(
-      keyspace = Config.getString("cassandra.keyspace", "netflow"),
-      hosts = Config.getStringList("cassandra.hosts", List("localhost")),
-      minConns = Config.getInt("cassandra.minConns", 5),
-      maxConns = Config.getInt("cassandra.maxConns", 40),
-      minSimRequests = Config.getInt("cassandra.minSimRequests", 5),
-      maxSimRequests = Config.getInt("cassandra.maxSimRequests", 128),
-      connectTimeout = Config.getInt("cassandra.connectTimeout", 5000),
-      reconnectTimeout = Config.getInt("cassandra.reconnectTimeout", 5000),
-      readTimeout = Config.getInt("cassandra.readTimeout", 60000),
-      keyspaceConfig = Config.getString("cassandra.keyspaceConfig",
-        "WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}"))
-
-    val cpus = Runtime.getRuntime.availableProcessors() match {
-      case x if x > 8 => x - 2
-      case x if x > 4 => x - 1
-      case _ => 1
-    }
-
     val adminAuthKey = Config.getString("admin.authKey").flatMap(ak => Tryo(UUID.fromString(ak))) match {
       case Some(ak) => ak
       case _ =>
@@ -136,9 +103,23 @@ private[netflow] object NodeConfig extends Logger {
       listen = Config.getInetAddrList("sflow.listen", List("0.0.0.0:6343")),
       persist = Config.getBool("sflow.persist", false))
 
-    val ssl = SslConfig(
-      certPath = Config.getString("http.ssl.p12"),
-      certPass = Config.getString("http.ssl.pass"))
+    val cassandra = CassandraConfig(
+      keyspace = Config.getString("cassandra.keyspace", "netflow"),
+      hosts = Config.getStringList("cassandra.hosts", List("localhost")),
+      minConns = Config.getInt("cassandra.minConns", 5),
+      maxConns = Config.getInt("cassandra.maxConns", 40),
+      minSimRequests = Config.getInt("cassandra.minSimRequests", 5),
+      maxSimRequests = Config.getInt("cassandra.maxSimRequests", 128),
+      connectTimeout = Config.getInt("cassandra.connectTimeout", 5000),
+      reconnectTimeout = Config.getInt("cassandra.reconnectTimeout", 5000),
+      readTimeout = Config.getInt("cassandra.readTimeout", 60000),
+      keyspaceConfig = Config.getString("cassandra.keyspaceConfig",
+        "WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}"))
+
+    val redis = RedisConfig(
+      hosts = Config.getStringList("redis.hosts", Seq("127.0.0.1:6379")))
+    val elastic = ElasticSearchConfig(
+      hosts = Config.getStringList("elastic.hosts", Seq("127.0.0.1:8983")))
 
     val http = HttpConfig(
       listen = Config.getInetAddrList("http.listen", List("0.0.0.0:8080")),
@@ -158,18 +139,27 @@ private[netflow] object NodeConfig extends Logger {
       reuseAddr = Config.getBool("http.tcp.reuseAddr", true),
       soLinger = Config.getInt("http.tcp.soLinger", 0))
 
+    val storage = Config.getString("storage").flatMap(n => Tryo(StorageLayer.withName(n)))
+
     val server = ServerConfig(
       cores = Config.getInt("server.cores").getOrElse(Runtime.getRuntime.availableProcessors()),
       statuslog = Config.getDuration("server.statuslog", 10 seconds),
+      storage = storage,
       debugStackTraces = Config.getBool("server.debugStackTraces", true),
       admin = admin,
       netflow = netflow,
       sflow = sflow,
       cassandra = cassandra,
-      ssl = ssl,
+      redis = redis,
+      elastic = elastic,
       tcp = tcp,
       http = http)
     info("Using %s of %s available cores", server.cores, Runtime.getRuntime.availableProcessors())
+    storage.map { layer =>
+      info("You are using the %s storage layer", layer)
+    }.getOrElse {
+      warn("You are running *WITHOUT* a storage backend, not doing anything!")
+    }
     server
   }
 

@@ -3,8 +3,8 @@
 =======
 
 This project aims to provide an extensible flow collector written in [Scala](http://scala-lang.org), 
-using [Netty](http://netty.io) as IO Framework as well as [Apache Cassandra](http://apache.cassandra.org) as Database.
-It is actively being developed by [wasted.io](https://twitter.com/wastedio), so don't forget to follow us on Twitter. :)
+using [Netty](http://netty.io) as IO Framework. It is actively being developed by [wasted.io](https://twitter.com/wastedio),
+so don't forget to follow us on Twitter. :)
 
 ### We do allow pull requests, but please follow the [contribution guidelines](https://github.com/wasted/netflow/blob/master/CONTRIBUTING.md).
 
@@ -24,7 +24,9 @@ It is actively being developed by [wasted.io](https://twitter.com/wastedio), so 
 
 ## Supported storage backends
 
-Previously versions supported [Redis](http://redis.io) as database, but has been deprecated in favor of [Apache Cassandra](https://cassandra.apache.org).
+Databases supported:
+- [Redis](http://redis.io)
+- [Apache Cassandra](https://cassandra.apache.org)
 
 ## What we won't implement
 
@@ -55,7 +57,7 @@ Can both be found in the Issues section up top.
 
 #### Setting up the Database
 
-First, setup cassandra in the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf).
+First, setup Redis or Cassandra in the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/reference.conf).
 After, start netflow to create the keyspace and required tables.
 
 ## Running
@@ -77,7 +79,7 @@ If you think it's ready for deployment, you can make yourself a .jar-file by run
 
 ## Deployment
 
-There are paramters for the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/sample.conf)
+There are paramters for the [configuration file](https://raw.github.com/wasted/netflow/master/src/main/resources/reference.conf)
 and the [logback config](https://raw.github.com/wasted/netflow/master/src/main/resources/logback.production.xml).
 To run the application, try something like ths:
 

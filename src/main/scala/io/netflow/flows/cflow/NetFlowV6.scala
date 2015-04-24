@@ -1,17 +1,17 @@
 package io.netflow.flows.cflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
-import com.datastax.driver.core.Row
 import com.datastax.driver.core.utils.UUIDs
-import com.websudos.phantom.Implicits._
+import com.twitter.util.Future
 import io.netflow.lib._
+import io.netflow.storage
 import io.netty.buffer._
 import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Try }
+import scala.util.{Failure, Try}
 
 /**
  * NetFlow Version 6
@@ -69,103 +69,12 @@ object NetFlowV6Packet {
     val samplingInterval = sampling & 0x3FFF
     val samplingMode = sampling >> 14
 
-    val flows: List[NetFlowV6Record] = (0 to count - 1).toList.flatMap { i =>
-      NetFlowV6(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp, samplingInterval)
+    val flows: List[NetFlowV6] = (0 to count - 1).toList.flatMap { i =>
+      apply(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp, samplingInterval)
     }
     NetFlowV6Packet(id, sender, buf.readableBytes, uptime, timestamp, flows, flowSequence, engineType, engineId,
       samplingInterval, samplingMode)
   }
-}
-
-case class NetFlowV6Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
-                           flows: List[NetFlowV6Record],
-                           flowSequence: Long, engineType: Int, engineId: Int,
-                           samplingInterval: Int, samplingMode: Int) extends FlowPacket {
-  def version = "NetFlowV6 Packet"
-  def count = flows.length
-
-  def persist() = flows.foldLeft((0, new BatchStatement())) {
-    case ((count, b), row) =>
-      val statement = NetFlowV6.insert
-        .value(_.id, UUIDs.startOf(timestamp.getMillis + count))
-        .value(_.packet, id)
-        .value(_.sender, row.sender.getAddress)
-        .value(_.timestamp, row.timestamp)
-        .value(_.uptime, row.uptime)
-        .value(_.senderPort, row.senderPort)
-        .value(_.length, row.length)
-        .value(_.srcPort, row.srcPort)
-        .value(_.dstPort, row.dstPort)
-        .value(_.srcAS, row.srcAS)
-        .value(_.dstAS, row.dstAS)
-        .value(_.pkts, row.pkts)
-        .value(_.bytes, row.bytes)
-        .value(_.proto, row.proto)
-        .value(_.tos, row.tos)
-        .value(_.tcpflags, row.tcpflags)
-        .value(_.start, row.start)
-        .value(_.stop, row.stop)
-        .value(_.srcAddress, row.srcAddress)
-        .value(_.dstAddress, row.dstAddress)
-        .value(_.nextHop, row.nextHop)
-        .value(_.snmpInput, row.snmpInput)
-        .value(_.snmpOutput, row.snmpOutput)
-        .value(_.srcMask, row.srcMask)
-        .value(_.dstMask, row.dstMask)
-      (count + 1, b.add(statement))
-  }._2.future()
-}
-
-/**
- * NetFlow Version 6 Flow
- *
- * *-------*-----------*----------------------------------------------------------*
- * | Bytes | Contents  | Description                                              |
- * *-------*-----------*----------------------------------------------------------*
- * | 0-3   | srcaddr   | Source IP address                                        |
- * *-------*-----------*----------------------------------------------------------*
- * | 4-7   | dstaddr   | Destination IP address                                   |
- * *-------*-----------*----------------------------------------------------------*
- * | 8-11  | nexthop   | IP address of next hop senderIP                            |
- * *-------*-----------*----------------------------------------------------------*
- * | 12-13 | input     | Interface index (ifindex) of input interface             |
- * *-------*-----------*----------------------------------------------------------*
- * | 14-15 | output    | Interface index (ifindex) of output interface            |
- * *-------*-----------*----------------------------------------------------------*
- * | 16-19 | dPkts     | Packets in the flow                                      |
- * *-------*-----------*----------------------------------------------------------*
- * | 20-23 | dOctets   | Total number of Layer 3 bytes in the packets of the flow |
- * *-------*-----------*----------------------------------------------------------*
- * | 24-27 | First     | SysUptime at start of flow                               |
- * *-------*-----------*----------------------------------------------------------*
- * | 28-31 | Last      | SysUptime at the time the last packet of the flow was    |
- * |       |           | received                                                 |
- * *-------*-----------*----------------------------------------------------------*
- * | 32-33 | srcport   | TCP/UDP source port number or equivalent                 |
- * *-------*-----------*----------------------------------------------------------*
- * | 34-35 | dstport   | TCP/UDP destination port number or equivalent            |
- * *-------*-----------*----------------------------------------------------------*
- * | 36    | pad1      | Unused (zero) bytes                                      |
- * *-------*-----------*----------------------------------------------------------*
- * | 37    | tcpflags  | Cumulative OR of TCP flags                               |
- * *-------*-----------*----------------------------------------------------------*
- * | 38    | prot      | IP protocol type (for example, TCP = 6; UDP = 17)        |
- * *-------*-----------*----------------------------------------------------------*
- * | 39    | tos       | IP type of service (ToS)                                 |
- * *-------*-----------*----------------------------------------------------------*
- * | 40-41 | src_as    | AS number of the source, either origin or peer           |
- * *-------*-----------*----------------------------------------------------------*
- * | 42-43 | dst_as    | AS number of the destination, either origin or peer      |
- * *-------*-----------*----------------------------------------------------------*
- * | 44    | src_mask  | Source address prefix mask bits                          |
- * *-------*-----------*----------------------------------------------------------*
- * | 45    | dst_mask  | Destination address prefix mask bits                     |
- * *-------*-----------*----------------------------------------------------------*
- * | 46-51 | pad2      | Unused (zero) bytes                                      |
- * *-------*-----------*----------------------------------------------------------*
- */
-
-sealed class NetFlowV6 extends CassandraTable[NetFlowV6, NetFlowV6Record] {
 
   /**
    * Parse a Version 6 Flow
@@ -177,12 +86,12 @@ sealed class NetFlowV6 extends CassandraTable[NetFlowV6, NetFlowV6Record] {
    * @param timestamp DateTime when this flow was exported
    * @param samplingInterval Interval samples are sent
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime, samplingInterval: Int): Option[NetFlowV6Record] =
-    Try[NetFlowV6Record] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime, samplingInterval: Int): Option[NetFlowV6] =
+    Try[NetFlowV6] {
       val sampling = NodeConfig.values.netflow.calculateSamples
       val pkts = buf.getUnsignedInteger(16, 4)
       val bytes = buf.getUnsignedInteger(20, 4)
-      NetFlowV6Record(UUIDs.timeBased(), sender, buf.readableBytes(), uptime, timestamp,
+      NetFlowV6(UUIDs.timeBased(), sender, buf.readableBytes(), uptime, timestamp,
         buf.getUnsignedInteger(32, 2).toInt, // srcPort
         buf.getUnsignedInteger(34, 2).toInt, // dstPort
         Option(buf.getUnsignedInteger(40, 2).toInt).filter(_ != -1), // srcAS
@@ -204,47 +113,32 @@ sealed class NetFlowV6 extends CassandraTable[NetFlowV6, NetFlowV6Record] {
         fpId)
     }.toOption
 
-  object id extends UUIDColumn(this) with PartitionKey[UUID]
-  object packet extends TimeUUIDColumn(this) with Index[UUID]
-  object sender extends InetAddressColumn(this) with PrimaryKey[InetAddress]
-  object timestamp extends DateTimeColumn(this) with PrimaryKey[DateTime]
-  object uptime extends LongColumn(this)
-  object senderPort extends IntColumn(this) with Index[Int]
-  object length extends IntColumn(this)
-  object srcPort extends IntColumn(this) with Index[Int]
-  object dstPort extends IntColumn(this) with Index[Int]
-  object srcAS extends OptionalIntColumn(this) with Index[Option[Int]]
-  object dstAS extends OptionalIntColumn(this) with Index[Option[Int]]
-  object pkts extends LongColumn(this)
-  object bytes extends LongColumn(this)
-  object proto extends IntColumn(this) with Index[Int]
-  object tos extends IntColumn(this) with Index[Int]
-  object tcpflags extends IntColumn(this)
-  object start extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
-  object stop extends OptionalDateTimeColumn(this) with Index[Option[DateTime]]
-  object srcAddress extends InetAddressColumn(this) with Index[InetAddress]
-  object dstAddress extends InetAddressColumn(this) with Index[InetAddress]
-  object nextHop extends OptionalInetAddressColumn(this) with Index[Option[InetAddress]]
-  object snmpInput extends IntColumn(this)
-  object snmpOutput extends IntColumn(this)
-  object srcMask extends IntColumn(this)
-  object dstMask extends IntColumn(this)
+  private def doLayer[T](f: FlowPacketMeta[NetFlowV6Packet] => Future[T]): Future[T] = NodeConfig.values.storage match {
+    case Some(StorageLayer.Cassandra) => f(storage.cassandra.NetFlowV6Packet)
+    case Some(StorageLayer.Redis) => f(storage.redis.NetFlowV6Packet)
+    case _ => Future.exception(NoBackendDefined)
+  }
 
-  def fromRow(row: Row): NetFlowV6Record = NetFlowV6Record(id(row), new InetSocketAddress(sender(row), senderPort(row)),
-    length(row), uptime(row), timestamp(row), srcPort(row), dstPort(row), srcAS(row), dstAS(row), pkts(row), bytes(row),
-    proto(row), tos(row), tcpflags(row), start(row), stop(row), srcAddress(row), dstAddress(row), nextHop(row),
-    snmpInput(row), snmpOutput(row), srcMask(row), dstMask(row), packet(row))
+  def persist(fp: NetFlowV6Packet): Unit = doLayer(l => Future.value(l.persist(fp)))
 }
 
-object NetFlowV6 extends NetFlowV6
+case class NetFlowV6Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+                           flows: List[NetFlowV6],
+                           flowSequence: Long, engineType: Int, engineId: Int,
+                           samplingInterval: Int, samplingMode: Int) extends FlowPacket {
+  def version = "NetFlowV6 Packet"
+  def count = flows.length
 
-case class NetFlowV6Record(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
-                           srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                           pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                           start: Option[DateTime], stop: Option[DateTime],
-                           srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
-                           snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, packet: UUID)
-  extends NetFlowData[NetFlowV6Record] {
+  def persist() = NetFlowV6Packet.persist(this)
+}
+
+case class NetFlowV6(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+                     srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
+                     pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
+                     start: Option[DateTime], stop: Option[DateTime],
+                     srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
+                     snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, packet: UUID)
+  extends NetFlowData[NetFlowV6] {
   def version = "NetFlowV6"
 
   override lazy val jsonExtra = ("srcMask" -> srcMask) ~ ("dstMask" -> dstMask) ~

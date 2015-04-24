@@ -1,23 +1,16 @@
-package io.netflow.actors
+package io.netflow.storage.cassandra
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.InetAddress
 
-import com.websudos.phantom.Implicits._
+import com.websudos.phantom.batch.CounterBatchStatement
 import io.netflow.flows._
 import io.netflow.lib._
-import io.netflow.timeseries._
 import io.wasted.util._
 import org.joda.time.DateTime
 
-private case class BadDatagram(date: DateTime, sender: InetAddress)
-
-private case class SaveJob(
-  sender: InetSocketAddress,
-  flowPacket: FlowPacket,
-  prefixes: List[InetPrefix])
-
-private[netflow] class FlowWorker(num: Int) extends Wactor {
+private[storage] class FlowWorker(num: Int) extends Wactor {
   override val loggerName = "FlowWorker %02d:".format(num)
+  import Connection._
 
   def receive = {
     case BadDatagram(date, sender) =>
@@ -25,6 +18,10 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
 
     case SaveJob(sender, flowPacket, prefixes) =>
       var batch = new CounterBatchStatement()
+
+      import com.websudos.phantom.Implicits._
+      FlowSenderRecord.update.where(_.ip eqs sender.getAddress).
+        modify(_.last setTo Some(DateTime.now)).future()
 
       /* Filters to get a list of prefixes that match */
       def findNetworks(flowAddr: InetAddress) = prefixes.filter(_.contains(flowAddr))
@@ -123,7 +120,7 @@ private[netflow] class FlowWorker(num: Int) extends Wactor {
 
     var editBatch = batch
     keys.foreach { key =>
-
+      import com.websudos.phantom.Implicits._
       // all counters
       editBatch = editBatch.add(NetFlowSeries.update
         .where(_.sender eqs flowPacket.sender.getAddress)

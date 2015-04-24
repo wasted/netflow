@@ -6,16 +6,26 @@ import io.netty.buffer._
 import io.wasted.util._
 import net.liftweb.json._
 import org.joda.time.DateTime
-import scala.util.{ Failure, Success, Try }
+
+import scala.util.{Failure, Success, Try}
 
 package object lib {
 
   import io.netflow.flows.cflow.TemplateFields
   implicit val wheelTimer = WheelTimer()
   implicit val formats = net.liftweb.json.DefaultFormats + new InetPrefixSerializer + new DirectionSerializer + new DateTimeSerializer
-  implicit val session = CassandraConnection.session
+
+  final val NoBackendDefined = new IllegalArgumentException("No backend is defined") with scala.util.control.NoStackTrace
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")
+
+  def string2prefix(str: String): Option[InetPrefix] = {
+    val split = str.split("/")
+    if (split.length != 2) None else for {
+      len <- Tryo(split(1).toInt)
+      base <- Tryo(InetAddress.getByName(split(0)))
+    } yield InetPrefix(base, len)
+  }
 
   implicit class RichByteBuf(val buf: ByteBuf) extends AnyVal {
     def getInetAddress(template: flows.cflow.Template, field: TemplateFields.Value): Option[InetAddress] = {

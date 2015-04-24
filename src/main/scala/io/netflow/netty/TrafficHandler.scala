@@ -9,8 +9,6 @@ import io.netty.channel._
 import io.netty.channel.socket.DatagramPacket
 import io.wasted.util._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket] with Logger {
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: Throwable) {
@@ -39,7 +37,7 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     actor onFailure {
       case e: Throwable =>
         warn("Unauthorized Flow received from " + sender.getAddress.getHostAddress + ":" + sender.getPort)
-        FlowManager.bad(sender)
+        if (NodeConfig.values.storage.isDefined) FlowManager.bad(sender)
 
     }
   }

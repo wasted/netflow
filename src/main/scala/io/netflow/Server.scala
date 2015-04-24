@@ -3,17 +3,17 @@ package io.netflow
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 
-import io.netflow.actors.{ FlowManager, SenderManager }
+import com.twitter.conversions.storage._
 import io.netflow.lib._
 import io.netflow.netty._
 import io.netty.bootstrap._
 import io.netty.channel._
 import io.netty.channel.nio._
-import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio._
+import io.netty.handler.codec.http.FullHttpRequest
 import io.wasted.util._
 
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 private[netflow] object Server extends Logger { PS =>
   private val _eventLoop = new AtomicReference[NioEventLoopGroup](null)
@@ -27,37 +27,24 @@ private[netflow] object Server extends Logger { PS =>
     info("Starting up netflow.io version %s", io.netflow.lib.BuildInfo.version)
     _eventLoop.set(new NioEventLoopGroup)
     _eventLoop2.set(new NioEventLoopGroup)
-    CassandraConnection.start()
-    SenderManager
-    FlowManager
+    storage.Connection.start()
 
     def startListeningFor(what: String, listeners: Seq[InetSocketAddress], handler: Option[ChannelHandler]): Boolean = {
       Try {
         what match {
           case "HTTP" =>
-            val chanTcp = new ServerBootstrap().group(eventLoop, eventLoop2)
-              .channel(classOf[NioServerSocketChannel])
-              .childOption[java.lang.Boolean](ChannelOption.TCP_NODELAY, NodeConfig.values.tcp.noDelay)
-              .childOption[java.lang.Boolean](ChannelOption.SO_KEEPALIVE, NodeConfig.values.tcp.keepAlive)
-              .childOption[java.lang.Boolean](ChannelOption.SO_REUSEADDR, NodeConfig.values.tcp.reuseAddr)
-              .childOption[java.lang.Integer](ChannelOption.SO_LINGER, NodeConfig.values.tcp.soLinger)
-              .childHandler(new ChannelInitializer[SocketChannel] {
-                override def initChannel(ch: SocketChannel) {
-                  ch.pipeline.addLast("nego", new ProtoNegoHandler)
-                }
-              })
-            chanTcp.childOption[java.lang.Integer](ChannelOption.SO_SNDBUF, NodeConfig.values.tcp.sendBufferSize)
-            chanTcp.childOption[java.lang.Integer](ChannelOption.SO_RCVBUF, NodeConfig.values.tcp.receiveBufferSize)
-
-            listeners.foreach { addr =>
-              Try(chanTcp.bind(addr).syncUninterruptibly()) match {
-                case Success(socket) =>
-                  info("Listening for HTTP on %s:%s", addr.getAddress.getHostAddress, addr.getPort)
-                case Failure(e) =>
-                  info("Unable to bind to %s:%s. Check your configuration.", addr.getAddress.getHostAddress, addr.getPort)
-                  if (NodeConfig.values.debugStackTraces) e.printStackTrace()
-              }
-            }
+            val codec = http.HttpCodec[FullHttpRequest]()
+              .withMaxHeaderSize(NodeConfig.values.http.maxHeaderSize.bytes)
+              .withMaxInitialLineLength(NodeConfig.values.http.maxInitialLineLength.bytes)
+              .withMaxResponseSize(NodeConfig.values.http.maxContentLength.bytes)
+              .withMaxRequestSize(NodeConfig.values.http.maxChunkSize.bytes)
+            val server = http.HttpServer()
+              .withTcpNoDelay(NodeConfig.values.tcp.noDelay)
+              .withTcpKeepAlive(NodeConfig.values.tcp.keepAlive)
+              .withReuseAddr(NodeConfig.values.tcp.reuseAddr)
+              .withSoLinger(NodeConfig.values.tcp.soLinger)
+              .withSpecifics(codec).handler(HttpAuthHandler.apply)
+            listeners.foreach(server.bind)
 
           case _ if handler.isDefined =>
             listeners.foreach { addr =>
@@ -105,9 +92,9 @@ private[netflow] object Server extends Logger { PS =>
     eventLoop2.shutdownGracefully()
     _eventLoop2.set(null)
 
-    SenderManager.stop()
-    FlowManager.stop()
-    CassandraConnection.shutdown()
+    actors.SenderManager.stop()
+    actors.FlowManager.stop()
+    storage.Connection.start()
 
     info("Shutdown complete")
   }

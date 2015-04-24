@@ -1,6 +1,6 @@
 package io.netflow.flows.sflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
 import com.datastax.driver.core.utils.UUIDs
@@ -10,7 +10,7 @@ import io.wasted.util.Logger
 import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Try }
+import scala.util.{Failure, Try}
 
 /**
  * sFlow Version 5 Packet
@@ -88,35 +88,13 @@ object SFlowV5Packet extends Logger {
     offset = offset + 16
 
     //packet.flows = Vector.range(0, count) map { i =>
-    //  val flow = SFlowV5(5, sender, buf.slice(offset, buf.readableBytes - offset), id)
+    //  val flow = apply(5, sender, buf.slice(offset, buf.readableBytes - offset), id)
     //  offset += flow.length + 8
     //  flow
     //}
     val flows: List[SFlowV5] = List()
     SFlowV5Packet(id, sender, buf.readableBytes, agent, agentSubId, sequenceId, uptime, flows)
   }
-}
-
-case class SFlowV5Packet(id: UUID, sender: InetSocketAddress, length: Int, agent: InetAddress,
-                         agentSubId: Long, sequenceId: Long, uptime: Long, flows: List[SFlowV5]) extends FlowPacket {
-  def version = "sFlowV5 Packet"
-  def count = flows.length
-  lazy val timestamp = DateTime.now
-  def persist: Unit = {
-    // FIXME persist
-  }
-}
-
-/**
- * sFlow Version 5
- *
- * *-------*-----------*----------------------------------------------------------*
- * | Bytes | Contents  | Description                                              |
- * *-------*-----------*----------------------------------------------------------*
- * *-------*-----------*----------------------------------------------------------*
- */
-
-object SFlowV5 {
 
   /**
    * Parse a Version 5 sFlow
@@ -128,6 +106,16 @@ object SFlowV5 {
   // Since sFlows have dynamic length, we need to keep count
   //var recordLength = 0
   //}
+}
+
+case class SFlowV5Packet(id: UUID, sender: InetSocketAddress, length: Int, agent: InetAddress,
+                         agentSubId: Long, sequenceId: Long, uptime: Long, flows: List[SFlowV5]) extends FlowPacket {
+  def version = "sFlowV5 Packet"
+  def count = flows.length
+  lazy val timestamp = DateTime.now
+  def persist(): Unit = {
+    // FIXME persist
+  }
 }
 
 case class SFlowV5(id: UUID, sender: InetSocketAddress, length: Int, packet: UUID) extends Flow[SFlowV5] {

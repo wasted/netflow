@@ -1,4 +1,4 @@
-package io.netflow.timeseries
+package io.netflow.storage.cassandra
 
 import java.net.InetAddress
 import java.util.UUID
@@ -10,9 +10,9 @@ import org.joda.time.DateTime
 /**
  * Tracks FlowPackets
  */
-case class NetFlowStatsRecord(id: UUID, date: DateTime, sender: InetAddress, port: Int, version: String, flows: Int, bytes: Int)
+private[storage] case class NetFlowStatsRecord(id: UUID, date: DateTime, sender: InetAddress, port: Int, version: String, flows: Int, bytes: Int)
 
-sealed class NetFlowStats extends CassandraTable[NetFlowStats, NetFlowStatsRecord] {
+private[storage] class NetFlowStats extends CassandraTable[NetFlowStats, NetFlowStatsRecord] {
 
   object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
   object id extends TimeUUIDColumn(this) with PrimaryKey[UUID]
@@ -27,4 +27,4 @@ sealed class NetFlowStats extends CassandraTable[NetFlowStats, NetFlowStatsRecor
   }
 }
 
-object NetFlowStats extends NetFlowStats
+private[storage] object NetFlowStats extends NetFlowStats

@@ -1,15 +1,14 @@
-package io.netflow.lib
+package io.netflow.storage.cassandra
 
 import com.datastax.driver.core._
-import com.datastax.driver.core.policies.{ ConstantReconnectionPolicy, DefaultRetryPolicy }
-import io.netflow.flows._
-import io.netflow.flows.cflow._
-import io.netflow.timeseries._
+import com.datastax.driver.core.policies.{ConstantReconnectionPolicy, DefaultRetryPolicy}
+import io.netflow.lib.NodeConfig
+import io.netflow.storage.{Connection => ConnectionMeta}
 import io.wasted.util.Logger
 
 import scala.collection.JavaConverters._
 
-object CassandraConnection extends Logger {
+private[storage] object Connection extends ConnectionMeta with Logger {
   private val hosts = NodeConfig.values.cassandra.hosts.mkString(",")
   private val client = {
     info(s"Opening new connection to $hosts")
@@ -79,30 +78,30 @@ object CassandraConnection extends Logger {
     session
 
     debug("Creating schema in database")
-    FlowSender.create.execute()
-    FlowSender.createIndexes()
+    FlowSenderRecord.create.execute()
+    FlowSenderRecord.createIndexes()
 
-    FlowSenderCount.create.execute()
-    FlowSenderCount.createIndexes()
+    FlowSenderCountRecord.create.execute()
+    FlowSenderCountRecord.createIndexes()
 
-    NetFlowV1.create.execute()
-    NetFlowV1.createIndexes()
+    NetFlowV1Record.create.execute()
+    NetFlowV1Record.createIndexes()
 
-    NetFlowV5.create.execute()
-    NetFlowV5.createIndexes()
+    NetFlowV5Record.create.execute()
+    NetFlowV5Record.createIndexes()
 
-    NetFlowV6.create.execute()
-    NetFlowV6.createIndexes()
+    NetFlowV6Record.create.execute()
+    NetFlowV6Record.createIndexes()
 
-    NetFlowV7.create.execute()
-    NetFlowV7.createIndexes()
+    NetFlowV7Record.create.execute()
+    NetFlowV7Record.createIndexes()
 
-    NetFlowV9Template.create.execute()
-    NetFlowV9Template.createIndexes()
-    NetFlowV9Data.create.execute()
-    NetFlowV9Data.createIndexes()
-    NetFlowV9Option.create.execute()
-    NetFlowV9Option.createIndexes()
+    NetFlowV9TemplateRecord.create.execute()
+    NetFlowV9TemplateRecord.createIndexes()
+    NetFlowV9DataRecord.create.execute()
+    NetFlowV9DataRecord.createIndexes()
+    NetFlowV9OptionRecord.create.execute()
+    NetFlowV9OptionRecord.createIndexes()
 
     NetFlowSeries.create.execute()
     NetFlowSeries.createIndexes()

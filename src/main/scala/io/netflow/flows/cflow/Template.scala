@@ -1,21 +1,21 @@
 package io.netflow.flows.cflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
-import com.datastax.driver.core.Row
 import com.datastax.driver.core.utils.UUIDs
-import com.websudos.phantom.Implicits._
+import com.twitter.util.Future
 import io.netflow.lib._
+import io.netflow.storage
 import io.netty.buffer._
 import io.wasted.util.Tryo
 import net.liftweb.json.JsonDSL._
 import net.liftweb.json.Serialization
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Try }
+import scala.util.{Failure, Try}
 
-abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
+private[netflow] abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
   def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, flowsetId: Int, timestamp: DateTime): Try[T] = Try[T] {
     val templateId = buf.getUnsignedShort(0)
     if (!(templateId < 0 || templateId > 255)) // 0-255 reserved for flowset ID
@@ -62,7 +62,7 @@ abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
   def apply(sender: InetSocketAddress, id: Int, fpId: UUID, timestamp: DateTime, map: Map[String, Int]): T
 }
 
-trait Template extends Flow[Template] {
+private[netflow] trait Template extends Flow[Template] {
   def versionNumber: Int
   def number: Int
   def map: Map[String, Int]
@@ -131,28 +131,20 @@ trait Template extends Flow[Template] {
   }
 }
 
-sealed class NetFlowV9Template extends CassandraTable[NetFlowV9Template, NetFlowV9TemplateRecord] {
-
-  object sender extends InetAddressColumn(this) with PartitionKey[InetAddress]
-  object id extends IntColumn(this) with PrimaryKey[Int]
-  object packet extends TimeUUIDColumn(this) with Index[UUID]
-  object senderPort extends IntColumn(this)
-  object last extends DateTimeColumn(this)
-  object map extends MapColumn[NetFlowV9Template, NetFlowV9TemplateRecord, String, Int](this)
-
-  def fromRow(row: Row) = NetFlowV9TemplateRecord(id(row), new InetSocketAddress(sender(row), senderPort(row)),
-    packet(row), last(row), map(row))
-
-}
-
-object NetFlowV9Template extends NetFlowV9Template
-
-case class NetFlowV9TemplateRecord(number: Int, sender: InetSocketAddress, packet: UUID, last: DateTime, map: Map[String, Int]) extends Template {
+private[netflow] case class NetFlowV9Template(number: Int, sender: InetSocketAddress, packet: UUID, last: DateTime, map: Map[String, Int]) extends Template {
   val versionNumber = 9
   lazy val id = UUIDs.timeBased()
 }
 
-object NetFlowV9TemplateMeta extends TemplateMeta[NetFlowV9TemplateRecord] {
+private[netflow] object NetFlowV9Template extends TemplateMeta[NetFlowV9Template] {
   def apply(sender: InetSocketAddress, id: Int, packet: UUID, timestamp: DateTime, map: Map[String, Int]) =
-    NetFlowV9TemplateRecord(id, sender, packet, timestamp, map)
+    NetFlowV9Template(id, sender, packet, timestamp, map)
+
+  private def doLayer[T](f: NetFlowTemplateMeta[NetFlowV9Template] => Future[T]): Future[T] = NodeConfig.values.storage match {
+    case Some(StorageLayer.Cassandra) => f(storage.cassandra.NetFlowV9TemplateRecord)
+    case Some(StorageLayer.Redis) => f(storage.redis.NetFlowV9TemplateRecord)
+    case _ => Future.exception(NoBackendDefined)
+  }
+
+  def findAll(inet: InetAddress): Future[Seq[NetFlowV9Template]] = doLayer(_.findAll(inet))
 }

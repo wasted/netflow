@@ -3,25 +3,21 @@ package io.netflow.actors
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 
-import com.websudos.phantom.Implicits._
+import com.twitter.conversions.time._
+import com.twitter.util.Await
 import io.netflow.flows._
 import io.netflow.lib._
+import io.netflow.storage.FlowSender
 import io.wasted.util._
-import org.joda.time.DateTime
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
-import scala.concurrent.duration._
-
-private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor with Logger {
+private[netflow] class SenderWorker(config: FlowSender) extends Wactor with Logger {
   override protected def loggerName = config.ip.getHostAddress
 
   private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
 
+  cflow.NetFlowV9Template
   private var templateCache: Map[Int, cflow.Template] = {
-    val v9templates = Await.result(cflow.NetFlowV9Template.select.where(_.sender eqs config.ip).fetch(), 30 seconds)
-      .map(x => x.number -> x).toMap
-    v9templates
+    Await.result(cflow.NetFlowV9Template.findAll(config.ip), 30 seconds).map(x => x.number -> x).toMap
   }
   info("Starting up with templates: " + templateCache.keys.mkString(", "))
 
@@ -29,14 +25,14 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
   def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.number -> tmpl
   private var cancellable = Shutdown.schedule()
 
-  private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = handled match {
-    case Some(fp) =>
-      FlowSender.update.where(_.ip eqs config.ip).
-        modify(_.last setTo Some(DateTime.now)).future()
-      FlowManager.save(osender, fp, senderPrefixes.get.toList)
-    case _ =>
-      warn("Unable to parse FlowPacket")
-      FlowManager.bad(osender)
+  private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = {
+    if (NodeConfig.values.storage.isDefined) handled match {
+      case Some(fp) =>
+        FlowManager.save(osender, fp, senderPrefixes.get.toList)
+      case _ =>
+        warn("Unable to parse FlowPacket")
+        FlowManager.bad(osender)
+    }
   }
 
   def receive = {
@@ -55,7 +51,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
         }
       }
       buf.release()
-      if (NodeConfig.values.netflow.persist) handled.map(_.persist())
+      if (NodeConfig.values.netflow.persist) handled.foreach(_.persist())
       handleFlowPacket(osender, handled)
 
     case SFlow(osender, buf) =>
@@ -76,7 +72,7 @@ private[netflow] class SenderWorker(config: FlowSenderRecord) extends Wactor wit
             case _ => None
           }
         }
-        if (NodeConfig.values.sflow.persist) handled.map(_.persist())
+        if (NodeConfig.values.sflow.persist) handled.foreach(_.persist())
         handleFlowPacket(osender, handled)
       }
       buf.release()
