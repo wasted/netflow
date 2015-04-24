@@ -13,7 +13,7 @@ import io.netty.channel.socket.nio._
 import io.netty.handler.codec.http.FullHttpRequest
 import io.wasted.util._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 private[netflow] object Server extends Logger { PS =>
   private val _eventLoop = new AtomicReference[NioEventLoopGroup](null)

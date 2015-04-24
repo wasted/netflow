@@ -7,7 +7,7 @@ import io.wasted.util._
 import net.liftweb.json._
 import org.joda.time.DateTime
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 package object lib {
 

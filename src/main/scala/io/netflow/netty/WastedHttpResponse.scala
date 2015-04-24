@@ -4,10 +4,10 @@ import io.netflow.lib._
 import io.netty.handler.codec.http._
 import io.wasted.util._
 import net.liftweb.json.JsonDSL._
-import net.liftweb.json.{JObject, Serialization}
+import net.liftweb.json.{ JObject, Serialization }
 
 // Objects to produce some standard http responses.
-private[this] object HttpResponse extends http.HttpResponder("netflow.io") {
+private[this] object WastedHttpResponse extends http.HttpResponder("netflow.io") {
   override def apply(status: HttpResponseStatus, body: Option[String] = None, mime: Option[String] = None, keepAlive: Boolean = false, headers: Map[String, String] = Map.empty): FullHttpResponse = {
     val resp = super.apply(status, body, mime, keepAlive, headers)
     resp.headers.set(HttpHeaders.Names.CACHE_CONTROL, HttpHeaders.Values.NO_CACHE)

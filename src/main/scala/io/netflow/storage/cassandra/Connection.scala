@@ -1,9 +1,9 @@
 package io.netflow.storage.cassandra
 
 import com.datastax.driver.core._
-import com.datastax.driver.core.policies.{ConstantReconnectionPolicy, DefaultRetryPolicy}
+import com.datastax.driver.core.policies.{ ConstantReconnectionPolicy, DefaultRetryPolicy }
 import io.netflow.lib.NodeConfig
-import io.netflow.storage.{Connection => ConnectionMeta}
+import io.netflow.storage.{ Connection => ConnectionMeta }
 import io.wasted.util.Logger
 
 import scala.collection.JavaConverters._

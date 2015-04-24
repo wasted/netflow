@@ -1,6 +1,6 @@
 package io.netflow.lib
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import io.netty.buffer.ByteBuf

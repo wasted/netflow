@@ -1,6 +1,6 @@
 package io.netflow.flows.cflow
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import com.datastax.driver.core.utils.UUIDs
@@ -12,7 +12,7 @@ import net.liftweb.json.JObject
 import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
-import scala.util.{Failure, Try}
+import scala.util.{ Failure, Try }
 
 /**
  * NetFlow Version 1

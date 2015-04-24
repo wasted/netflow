@@ -3,7 +3,7 @@ package io.netflow.lib
 import java.net.InetSocketAddress
 import java.util.UUID
 
-import io.wasted.util.{Config, Logger, Tryo}
+import io.wasted.util.{ Config, Logger, Tryo }
 
 import scala.concurrent.duration._
 

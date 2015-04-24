@@ -1,14 +1,14 @@
 package io.netflow.storage
 package cassandra
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import com.datastax.driver.core.Row
 import com.datastax.driver.core.utils.UUIDs
 import com.websudos.phantom.CassandraTable
 import com.websudos.phantom.Implicits._
-import com.websudos.phantom.column.{DateTimeColumn, TimeUUIDColumn}
+import com.websudos.phantom.column.{ DateTimeColumn, TimeUUIDColumn }
 import io.netflow.flows.cflow._
 import io.netflow.lib._
 import org.joda.time.DateTime

@@ -44,8 +44,8 @@ private[netflow] object HttpAuthHandler {
       }
     } yield authorizeWithPlatform(authKey, signHash, body)
 
-    if (resp.exists(_ == true)) AdminAPIHandler.dispatch(chan, freq)
-    else Future.value(HttpResponse.Unauthorized("API Key unknown or signature is bad"))
+    if (resp.exists(_ == true)) HttpHandler.dispatch(chan, freq)
+    else Future.value(WastedHttpResponse.Unauthorized("API Key unknown or signature is bad"))
   }
 }
 

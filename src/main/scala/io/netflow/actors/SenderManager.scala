@@ -3,7 +3,7 @@ package io.netflow.actors
 import java.net.InetAddress
 
 import com.twitter.conversions.time._
-import com.twitter.util.{Await, Future, Promise}
+import com.twitter.util.{ Await, Future, Promise }
 import io.netflow.storage.FlowSender
 import io.wasted.util._
 

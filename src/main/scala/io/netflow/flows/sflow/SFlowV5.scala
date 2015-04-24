@@ -1,6 +1,6 @@
 package io.netflow.flows.sflow
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import com.datastax.driver.core.utils.UUIDs
@@ -10,7 +10,7 @@ import io.wasted.util.Logger
 import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
-import scala.util.{Failure, Try}
+import scala.util.{ Failure, Try }
 
 /**
  * sFlow Version 5 Packet

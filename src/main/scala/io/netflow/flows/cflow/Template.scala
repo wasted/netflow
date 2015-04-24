@@ -1,6 +1,6 @@
 package io.netflow.flows.cflow
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import com.datastax.driver.core.utils.UUIDs
@@ -13,7 +13,7 @@ import net.liftweb.json.JsonDSL._
 import net.liftweb.json.Serialization
 import org.joda.time.DateTime
 
-import scala.util.{Failure, Try}
+import scala.util.{ Failure, Try }
 
 private[netflow] abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
   def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, flowsetId: Int, timestamp: DateTime): Try[T] = Try[T] {

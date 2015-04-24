@@ -4,7 +4,7 @@ package redis
 
 import java.net.InetAddress
 
-import com.twitter.finagle.redis.util.{CBToString, StringToChannelBuffer}
+import com.twitter.finagle.redis.util.{ CBToString, StringToChannelBuffer }
 import com.twitter.util.Future
 import io.netflow.lib._
 

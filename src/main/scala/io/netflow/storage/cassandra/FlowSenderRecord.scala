@@ -4,7 +4,7 @@ package cassandra
 import java.net.InetAddress
 
 import com.datastax.driver.core.Row
-import com.twitter.util.{Future, Promise}
+import com.twitter.util.{ Future, Promise }
 import com.websudos.phantom.Implicits._
 import io.netflow.lib._
 

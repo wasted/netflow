@@ -1,13 +1,13 @@
 package io.netflow.storage.cassandra
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.{ InetAddress, InetSocketAddress }
 import java.util.UUID
 
 import com.datastax.driver.core.Row
-import com.twitter.util.{Future, Promise}
+import com.twitter.util.{ Future, Promise }
 import com.websudos.phantom.CassandraTable
 import com.websudos.phantom.Implicits._
-import com.websudos.phantom.keys.{Index, PartitionKey, PrimaryKey}
+import com.websudos.phantom.keys.{ Index, PartitionKey, PrimaryKey }
 import io.netflow.flows.cflow._
 import io.netflow.lib._
 

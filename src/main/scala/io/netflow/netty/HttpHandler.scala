@@ -3,9 +3,9 @@ package io.netflow.netty
 import java.net.InetAddress
 
 import com.twitter.conversions.time._
-import com.twitter.util.{Await, Future}
+import com.twitter.util.{ Await, Future }
 import io.netflow.lib._
-import io.netflow.storage.{FlowSender, NetFlowSeries}
+import io.netflow.storage.{ FlowSender, NetFlowSeries }
 import io.netty.channel.Channel
 import io.netty.handler.codec.http._
 import io.netty.util.CharsetUtil
@@ -21,39 +21,38 @@ private[netty] object InetPrefixesParam {
   def unapply(a: List[String]): Option[Set[String]] = Some(a.grouped(2).map(_.mkString("/")).toSet)
 }
 
-private[netflow] object AdminAPIHandler extends Logger {
+private[netflow] object HttpHandler extends Logger {
   def dispatch(chan: Channel, freq: Future[FullHttpRequest]): Future[HttpResponse] = freq.flatMap { request =>
-    // If this is a GET request which results in content, we forward it
     val qsd = new QueryStringDecoder(request.getUri)
     val parts = qsd.path.replaceAll("^/", "").split("/").toList
     (request.getMethod, parts) match {
-      case (HttpMethod.GET, Nil) => Future.value(HttpResponse.OK())
+      case (HttpMethod.GET, Nil) => Future.value(WastedHttpResponse.OK())
 
       case (HttpMethod.GET, "senders" :: Nil) =>
-        FlowSender.findAll().map(Serialization.write(_)).map(HttpResponse.OK(_))
+        FlowSender.findAll().map(Serialization.write(_)).map(WastedHttpResponse.OK(_))
 
       case (HttpMethod.GET, "senders" :: InetAddressParam(ipaddr) :: Nil) =>
-        FlowSender.find(ipaddr).map(Serialization.write(_)).map(HttpResponse.OK(_))
+        FlowSender.find(ipaddr).map(Serialization.write(_)).map(WastedHttpResponse.OK(_))
 
       case (HttpMethod.PUT, "senders" :: InetAddressParam(ipaddr) :: Nil) =>
         val requestBody = request.content().toString(CharsetUtil.UTF_8)
         JsonParser.parseOpt(requestBody) match {
-          case None => Future.value(HttpResponse.BadRequest("Did not contain a JSON-payload"))
+          case None => Future.value(WastedHttpResponse.BadRequest("Did not contain a JSON-payload"))
           case Some(json) =>
             val prefixes: Set[InetPrefix] = (json \ "prefixes").extractOpt[List[InetPrefix]].getOrElse(Nil).toSet
-            FlowSender(ipaddr, None, prefixes).save().map(Serialization.write(_)).map(HttpResponse.OK(_))
+            FlowSender(ipaddr, None, prefixes).save().map(Serialization.write(_)).map(WastedHttpResponse.OK(_))
         }
 
       case (HttpMethod.DELETE, "senders" :: InetAddressParam(ipaddr) :: Nil) =>
         val requestBody = request.content().toString(CharsetUtil.UTF_8)
-        if (requestBody.isEmpty) FlowSender.delete(ipaddr).map { done => HttpResponse.OK() }
+        if (requestBody.isEmpty) FlowSender.delete(ipaddr).map { done => WastedHttpResponse.OK() }
         else JsonParser.parseOpt(requestBody) match {
-          case None => Future.value(HttpResponse.BadRequest("Did not contain a JSON-payload"))
+          case None => Future.value(WastedHttpResponse.BadRequest("Did not contain a JSON-payload"))
           case Some(json) =>
             val prefixes: Set[InetPrefix] = (json \ "prefixes").extractOpt[List[InetPrefix]].getOrElse(Nil).toSet
             FlowSender.find(ipaddr).flatMap { sender =>
               sender.copy(prefixes = sender.prefixes -- prefixes).save().map { sender =>
-                HttpResponse.OK(Serialization.write(sender))
+                WastedHttpResponse.OK(Serialization.write(sender))
               }
             }
         }
@@ -81,17 +80,17 @@ private[netflow] object AdminAPIHandler extends Logger {
                   }.toMap
                   prefix -> pfxResult
               }.toMap
-              HttpResponse.OK(Serialization.write(result))
+              WastedHttpResponse.OK(Serialization.write(result))
 
-            case _ => HttpResponse.NotFound()
+            case _ => WastedHttpResponse.NotFound()
           }
         }.rescue {
           case t: Throwable =>
             t.printStackTrace()
-            Future(HttpResponse.InternalServerError(t.getMessage))
+            Future(WastedHttpResponse.InternalServerError(t.getMessage))
         }
 
-      case _ => Future.value(HttpResponse.NotFound())
+      case _ => Future.value(WastedHttpResponse.NotFound())
     }
   }
 }

@@ -3,12 +3,12 @@ package io.netflow.storage.cassandra
 import java.net.InetAddress
 
 import com.datastax.driver.core.Row
-import com.websudos.phantom.Implicits.{InetAddressColumn, StringColumn}
+import com.websudos.phantom.Implicits.{ InetAddressColumn, StringColumn }
 import com.websudos.phantom._
 import com.websudos.phantom.column.CounterColumn
-import com.websudos.phantom.keys.{PartitionKey, PrimaryKey}
+import com.websudos.phantom.keys.{ PartitionKey, PrimaryKey }
 import io.netflow.lib._
-import io.netflow.storage.{NetFlowSeries => NetFlowSeriesMeta}
+import io.netflow.storage.{ NetFlowSeries => NetFlowSeriesMeta }
 import io.wasted.util.InetPrefix
 import net.liftweb.json.JsonAST.JField
 import net.liftweb.json._
