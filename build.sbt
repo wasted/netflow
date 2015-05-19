@@ -17,13 +17,13 @@ javacOptions ++= Seq("-target", "1.7", "-source", "1.7", "-Xlint:deprecation")
 mainClass in assembly := Some("io.netflow.Node")
 
 libraryDependencies ++= {
-  val wastedVersion = "0.9.3"
+  val wastedVersion = "0.9.5"
   val liftVersion = "2.6.2"
   val phantomVersion = "1.5.0"
   Seq(
     "net.liftweb" %% "lift-json" % liftVersion,
     "io.wasted" %% "wasted-util" % wastedVersion,
-    "com.twitter" %% "finagle-redis" % "6.25.0-SNAPSHOT",
+    "com.twitter" %% "finagle-redis" % "6.25.0",
     "com.websudos"  %% "phantom-dsl" % phantomVersion,
     "org.xerial.snappy" % "snappy-java" % "1.1.1.3",
     "joda-time" % "joda-time" % "2.7"
