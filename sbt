@@ -11,7 +11,7 @@ sbtsum=7341059aa30c953021d6af41c89d2cac
 
 function download {
 	echo "downloading ${sbtjar}" 1>&2
-	curl -O "http://repo.typesafe.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${sbtver}/${sbtjar}"
+	wget "http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${sbtver}/jars/${sbtjar}"
 	mkdir -p target/ && mv ${sbtjar} target/${sbtjar}
 }
 
@@ -63,12 +63,14 @@ case $1 in
 esac
 
 
-java -ea -server ${JAVA_OPTS}                       \
-	-XX:+AggressiveOpts                             \
-	-XX:+OptimizeStringConcat                       \
-	-XX:+UseConcMarkSweepGC                         \
-	-XX:+CMSParallelRemarkEnabled                   \
-	-XX:+CMSClassUnloadingEnabled                   \
-    -Dlogback.configurationFile=src/main/resources/logback.xml \
-    -Dconfig.file=src/main/resources/application.conf \
+java -ea -server ${JAVA_OPTS}						\
+	-XX:+AggressiveOpts						\
+	-XX:+OptimizeStringConcat					\
+	-XX:+UseConcMarkSweepGC						\
+	-XX:+CMSParallelRemarkEnabled					\
+	-XX:+CMSClassUnloadingEnabled					\
+	-Dio.netty.leakDetectionLevel=advanced				\
+	-Dlogback.configurationFile=src/main/resources/logback.xml	\
+	-Dconfig.file=src/main/resources/application.conf		\
 	-jar target/${sbtjar} ${SBT_CMD}
+
