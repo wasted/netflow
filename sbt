@@ -11,7 +11,7 @@ sbtsum=7341059aa30c953021d6af41c89d2cac
 
 function download {
 	echo "downloading ${sbtjar}" 1>&2
-	wget "http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${sbtver}/jars/${sbtjar}"
+	wget -O ${sbtjar} "http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${sbtver}/jars/${sbtjar}"
 	mkdir -p target/ && mv ${sbtjar} target/${sbtjar}
 }
 

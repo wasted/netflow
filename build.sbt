@@ -26,7 +26,8 @@ libraryDependencies ++= {
     "com.twitter" %% "finagle-redis" % "6.25.0",
     "com.websudos"  %% "phantom-dsl" % phantomVersion,
     "org.xerial.snappy" % "snappy-java" % "1.1.1.3",
-    "joda-time" % "joda-time" % "2.7"
+    "joda-time" % "joda-time" % "2.7",
+		"org.codehaus.janino" % "janino" % "2.6.1"
   )
 }
 
