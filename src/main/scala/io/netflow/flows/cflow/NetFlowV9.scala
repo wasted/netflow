@@ -166,9 +166,9 @@ object NetFlowV9Packet extends Logger {
     val tos = (buf.getUnsignedInteger(template, SRC_TOS) getOrElse -1L).toInt
 
     // calculate the offset from uptime and subtract that from the timestamp
-    val start = buf.getUnsignedInteger(template, FIRST_SWITCHED).filter(_ == 0).
+    val start = buf.getUnsignedInteger(template, FIRST_SWITCHED).filterNot(_ == 0).
       map(x => timestamp.minus(uptime - x))
-    val stop = buf.getUnsignedInteger(template, LAST_SWITCHED).filter(_ == 0).
+    val stop = buf.getUnsignedInteger(template, LAST_SWITCHED).filterNot(_ == 0).
       map(x => timestamp.minus(uptime - x))
     val tcpflags = (buf.getUnsignedInteger(template, TCP_FLAGS) getOrElse -1L).toInt
 
